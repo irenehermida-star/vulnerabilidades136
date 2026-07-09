@@ -1037,6 +1037,9 @@
         <button class="btn btn-export" onclick="document.getElementById('importFileInput').click()"
           title="Importar estado del tablero" aria-label="Importar estado">📥 Importar</button>
         <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
+        <button class="btn btn-export" onclick="resetLocalCache()"
+          style="background:#e63946; color:white; border-color:#e63946;"
+          title="Limpiar caché local del navegador y recargar" aria-label="Limpiar caché">🧹 Limpiar Caché</button>
         <button class="theme-toggle" onclick="toggleTheme()" title="Cambiar modo claro/oscuro" aria-label="Cambiar tema"
           id="themeToggle">🌙</button>
       </div>
@@ -4398,6 +4401,7 @@
         PROCESSES.push({ id: processId, name: processId, color: randColor });
         localStorage.setItem('exact_board_processes', JSON.stringify(PROCESSES));
         populateProcessFilters();
+        syncProcesses();
       }
     }
 
@@ -4407,15 +4411,25 @@
       const cleanName = name.trim();
       if (!cleanName) return;
 
-      const exists = PROCESSES.some(pr => pr.id.toLowerCase() === cleanName.toLowerCase());
+      const exists = PROCESSES.some(pr => pr.name.toLowerCase() === cleanName.toLowerCase());
       if (exists) {
         alert("Ya existe un carril con ese nombre.");
         return;
       }
 
+      // Use cleanName as initial ID and name
       registerProcessIfNeeded(cleanName);
       renderBoard();
       showToast("➕ Carril '" + cleanName + "' creado correctamente");
+    }
+
+    function resetLocalCache() {
+      if (confirm("¿Estás seguro de que quieres limpiar la caché local del navegador? Se borrarán los carriles modificados y notas locales, y se cargará todo de nuevo desde Google Sheets.")) {
+        localStorage.removeItem('exact_board_local_fallback');
+        localStorage.removeItem('exact_board_processes');
+        localStorage.removeItem('collapsed_swimlanes');
+        location.reload();
+      }
     }
 
     function editSwimlaneName(processId) {
@@ -4426,29 +4440,19 @@
       const cleanName = newName.trim();
       if (!cleanName) return;
 
-      const exists = PROCESSES.some(p => p.id.toLowerCase() === cleanName.toLowerCase() && p.id !== processId);
+      const exists = PROCESSES.some(p => p.name.toLowerCase() === cleanName.toLowerCase() && p.id !== processId);
       if (exists) {
         alert("Ya existe un carril con ese nombre.");
         return;
       }
 
-      const oldId = proc.id;
       proc.name = cleanName;
-      proc.id = cleanName;
-
-      // Update all projects that belong to the old process ID
-      projects.forEach(p => {
-        if (p.process === oldId) {
-          p.process = cleanName;
-        }
-      });
 
       saveLocalState();
       renderBoard();
       showToast("✏️ Carril renombrado a '" + cleanName + "' correctamente");
 
-      // Force sync all moved projects to update their process property in Sheets
-      projects.filter(p => p.process === cleanName).forEach(p => syncCard(p));
+      syncProcesses(); // Sync single configuration row
     }
 
     function deleteSwimlane(processId) {
@@ -4463,8 +4467,11 @@
         saveLocalState();
         renderBoard();
         showToast("🗑️ Carril '" + processId + "' eliminado correctamente");
+        syncProcesses();
       }
     }
+
+
 
     // Update Global Stats Panel
     function updateGlobalStats() {
@@ -4549,6 +4556,14 @@
         // Map sheet data back to projects (preserving local new cards)
         sheetData.forEach(row => {
           if (row.projectId === '__CONFIG__COLUMNS__') return;
+          if (row.projectId === '__CONFIG__PROCESSES__') {
+            if (row.checklist && row.checklist.trim().startsWith('[')) {
+              try {
+                PROCESSES = JSON.parse(row.checklist);
+              } catch (e) { }
+            }
+            return;
+          }
 
           let p = projects.find(proj => proj.id === row.projectId);
           if (!p) {
@@ -4712,6 +4727,30 @@
       }
     }
 
+    async function syncProcesses() {
+      if (!SCRIPT_URL || SCRIPT_URL.includes("TU_GOOGLE_APPS_SCRIPT")) {
+        saveLocalState();
+        return;
+      }
+
+      setSyncState('syncing', 'Guardando configuración...');
+      const processesStr = JSON.stringify(PROCESSES);
+      const updateUrl = SCRIPT_URL +
+        "?action=update" +
+        "&projectId=__CONFIG__PROCESSES__" +
+        "&listId=config" +
+        "&checklist=" + encodeURIComponent(processesStr);
+
+      try {
+        const response = await fetch(updateUrl, { method: 'GET', keepalive: true });
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+        setSyncState('connected', 'Sincronizado');
+      } catch (err) {
+        console.error("Failed to sync processes:", err);
+        setSyncState('disconnected', 'Error de conexión');
+      }
+    }
+
     // Drag and Drop variables
     let draggedCardId = null;
 
@@ -4827,6 +4866,20 @@
     }
 
     function closeModal() {
+      if (activeProjectId) {
+        const p = projects.find(proj => proj.id === activeProjectId);
+        if (p) {
+          const commentInput = document.getElementById('modalCommentInput');
+          if (commentInput) {
+            const commentVal = commentInput.value.trim();
+            if (p.comment !== commentVal) {
+              p.comment = commentVal;
+              saveLocalState();
+              syncCard(p);
+            }
+          }
+        }
+      }
       document.getElementById('cardModal').style.display = 'none';
       activeProjectId = null;
     }
