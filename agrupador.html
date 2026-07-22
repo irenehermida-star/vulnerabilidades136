@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RDR - Agrupador de Javas</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --accent: #00b4d8;
+      --accent-dark: #0077b6;
+      --accent-soft: #90e0ef;
+      --good: #06d6a0;
+      --warn: #ffd166;
+      --bad: #ef476f;
+      --bg: #eef6f6;
+      --panel: #ffffff;
+      --line: rgba(0, 180, 216, 0.15);
+      --muted: #6c8c96;
+      --ink: #03045e;
+      --radius-bubble: 24px;
+      --radius-card: 16px;
+      --radius-pill: 99px;
+      --col-bg: #f8fbfb;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0d1b2a;
+      --panel: #1b2838;
+      --line: rgba(0, 180, 216, 0.2);
+      --muted: #8faab5;
+      --ink: #e0f7fa;
+      --col-bg: #162230;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .header {
+      background: linear-gradient(135deg, #005f73, #0a9396, #94d2bd);
+      color: white;
+      padding: 20px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(10, 147, 150, 0.12);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--radius-pill);
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 200ms ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-light {
+      background: white;
+      color: #0a9396;
+    }
+
+    .btn-light:hover {
+      background: var(--accent-soft);
+      transform: translateY(-2px);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: white;
+      box-shadow: none;
+    }
+
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .theme-toggle {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: white;
+      padding: 8px 14px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .container {
+      max-width: 1900px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .toolbar input {
+      padding: 12px 18px;
+      border: 1.5px solid var(--line);
+      border-radius: var(--radius-pill);
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 0.9rem;
+      outline: none;
+      min-width: 240px;
+    }
+
+    .blocks-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .block {
+      background: var(--panel);
+      border-radius: var(--radius-bubble);
+      border: 1.5px solid var(--line);
+      box-shadow: 0 10px 25px rgba(0, 119, 182, 0.05);
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      max-height: 80vh;
+      transition: box-shadow 150ms ease, border-color 150ms ease;
+    }
+
+    .block.drag-over {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.2);
+    }
+
+    .block-header {
+      padding: 14px 18px;
+      border-bottom: 2px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .block-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .block-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--accent-dark);
+      border: none;
+      background: transparent;
+      outline: none;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .block-count {
+      background: rgba(0, 180, 216, 0.08);
+      color: var(--accent-dark);
+      padding: 2px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .block-delete {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      opacity: 0.5;
+      padding: 4px;
+    }
+
+    .block-delete:hover {
+      opacity: 1;
+    }
+
+    .block-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--col-bg);
+      min-height: 120px;
+    }
+
+    .block-empty {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 30px 8px;
+      opacity: 0.6;
+      font-style: italic;
+    }
+
+    .jcard {
+      background: var(--panel);
+      border: 1.5px solid rgba(0, 180, 216, 0.15);
+      border-radius: var(--radius-card);
+      padding: 12px 14px;
+      cursor: grab;
+      box-shadow: 0 4px 10px rgba(0, 119, 182, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: transform 150ms ease, box-shadow 150ms ease;
+    }
+
+    .jcard:active {
+      cursor: grabbing;
+    }
+
+    .jcard.dragging {
+      opacity: 0.35;
+      transform: scale(0.96);
+    }
+
+    .jcard.risk-high { border-left: 5px solid var(--bad); }
+    .jcard.risk-medium { border-left: 5px solid var(--warn); }
+    .jcard.risk-low { border-left: 5px solid var(--good); }
+
+    .jcard-name {
+      font-weight: 800;
+      font-size: 0.9rem;
+      color: var(--ink);
+    }
+
+    .jcard-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .add-block-card {
+      width: 320px;
+      min-height: 100px;
+      border: 2px dashed var(--line);
+      border-radius: var(--radius-bubble);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-weight: 700;
+      transition: all 150ms ease;
+    }
+
+    .add-block-card:hover {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+      background: rgba(0, 180, 216, 0.04);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--good);
+      color: white;
+      padding: 14px 22px;
+      border-radius: var(--radius-card);
+      box-shadow: 0 8px 24px rgba(6, 214, 160, 0.3);
+      font-weight: 700;
+      z-index: 1000;
+      animation: slideIn 300ms ease;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <h1>🧩 Agrupador Libre de Javas</h1>
+    <div class="header-actions">
+      <input type="text" id="searchInput" placeholder="Buscar proyecto..." onkeyup="renderAll()"
+        style="padding:10px 16px; border-radius:99px; border:none; min-width:220px;">
+      <button class="btn btn-light" onclick="location.href='index.html'" title="Volver al tablero principal">⬅
+        Volver al Tablero</button>
+      <button class="btn btn-outline" onclick="resetGrouping()" title="Poner todos los proyectos en un solo bloque">♻️
+        Reiniciar Agrupación</button>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Cambiar modo claro/oscuro"
+        id="themeToggle">🌙</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="toolbar">
+      <span style="color:var(--muted); font-size:0.85rem;">
+        Arrastra las tarjetas entre bloques. Usa "➕ Nuevo Bloque" para crear cuantos necesites. Los cambios se
+        guardan automáticamente y se reflejan también en el tablero principal.
+      </span>
+    </div>
+
+    <div class="blocks-wrapper" id="blocksWrapper"></div>
+  </div>
+
+  <script>
+    // Shared localStorage keys with index.html so grouping reflects on the main board too
+    const STORAGE_PROJECTS = 'exact_board_local_fallback';
+    const STORAGE_PROCESSES = 'exact_board_processes';
+    const STORAGE_GROUPING_INIT = 'agrupador_initialized';
+
+    let projects = [];
+    let blocks = []; // { id, name }
+    let draggedId = null;
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next === 'dark' ? 'dark' : '');
+      document.getElementById('themeToggle').textContent = next === 'dark' ? '☀️' : '🌙';
+      localStorage.setItem('board_theme', next);
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem('board_theme');
+      if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('themeToggle').textContent = '☀️';
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function loadProjects() {
+      const saved = localStorage.getItem(STORAGE_PROJECTS);
+      if (saved) {
+        try {
+          projects = JSON.parse(saved);
+        } catch (e) {
+          projects = [];
+        }
+      }
+    }
+
+    function saveProjects() {
+      localStorage.setItem(STORAGE_PROJECTS, JSON.stringify(projects));
+    }
+
+    function loadBlocks() {
+      const saved = localStorage.getItem('agrupador_blocks');
+      if (saved) {
+        try {
+          blocks = JSON.parse(saved);
+        } catch (e) {
+          blocks = [];
+        }
+      }
+      if (!blocks || blocks.length === 0) {
+        blocks = [{ id: 'bloque_unico', name: 'Todos los Javas' }];
+      }
+    }
+
+    function saveBlocks() {
+      localStorage.setItem('agrupador_blocks', JSON.stringify(blocks));
+    }
+
+    function initGrouping() {
+      // First time visiting: put every project into the single starting block
+      const already = localStorage.getItem(STORAGE_GROUPING_INIT);
+      if (!already) {
+        projects.forEach(p => {
+          p.groupBlock = 'bloque_unico';
+        });
+        localStorage.setItem(STORAGE_GROUPING_INIT, '1');
+        saveProjects();
+      } else {
+        // Ensure every project has a groupBlock, default to first block
+        const defaultBlockId = blocks[0] ? blocks[0].id : 'bloque_unico';
+        let changed = false;
+        projects.forEach(p => {
+          if (!p.groupBlock || !blocks.some(b => b.id === p.groupBlock)) {
+            p.groupBlock = defaultBlockId;
+            changed = true;
+          }
+        });
+        if (changed) saveProjects();
+      }
+    }
+
+    function resetGrouping() {
+      if (!confirm('¿Seguro que quieres poner todos los proyectos de nuevo en un único bloque?')) return;
+      blocks = [{ id: 'bloque_unico', name: 'Todos los Javas' }];
+      projects.forEach(p => { p.groupBlock = 'bloque_unico'; });
+      saveBlocks();
+      saveProjects();
+      renderAll();
+      showToast('♻️ Agrupación reiniciada');
+    }
+
+    function addNewBlock() {
+      const name = prompt('Nombre del nuevo bloque:');
+      if (!name) return;
+      const cleanName = name.trim();
+      if (!cleanName) return;
+      const id = 'bloque_' + Date.now();
+      blocks.push({ id, name: cleanName });
+      saveBlocks();
+      renderAll();
+      showToast('➕ Bloque "' + cleanName + '" creado');
+    }
+
+    function renameBlock(blockId, newName) {
+      const b = blocks.find(bl => bl.id === blockId);
+      if (b && newName.trim()) {
+        b.name = newName.trim();
+        saveBlocks();
+      }
+    }
+
+    function deleteBlock(blockId) {
+      const hasProjects = projects.some(p => p.groupBlock === blockId);
+      if (hasProjects) {
+        alert('No se puede eliminar este bloque porque contiene proyectos. Muévelos a otro bloque primero.');
+        return;
+      }
+      if (blocks.length === 1) {
+        alert('Debe existir al menos un bloque.');
+        return;
+      }
+      if (confirm('¿Eliminar este bloque vacío?')) {
+        blocks = blocks.filter(b => b.id !== blockId);
+        saveBlocks();
+        renderAll();
+        showToast('🗑️ Bloque eliminado');
+      }
+    }
+
+    function drag(event, id) {
+      draggedId = id;
+      event.target.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function dragEnd(event) {
+      event.target.classList.remove('dragging');
+      document.querySelectorAll('.block').forEach(b => b.classList.remove('drag-over'));
+    }
+
+    function allowDrop(event) {
+      event.preventDefault();
+    }
+
+    function dropOnBlock(event, blockId) {
+      event.preventDefault();
+      document.querySelectorAll('.block').forEach(b => b.classList.remove('drag-over'));
+      if (!draggedId) return;
+      const project = projects.find(p => p.id === draggedId);
+      if (project && project.groupBlock !== blockId) {
+        project.groupBlock = blockId;
+        saveProjects();
+        renderAll();
+        showToast('🔀 Proyecto movido de bloque');
+      }
+      draggedId = null;
+    }
+
+    function renderAll() {
+      const search = (document.getElementById('searchInput').value || '').toLowerCase();
+      const wrapper = document.getElementById('blocksWrapper');
+      wrapper.innerHTML = '';
+
+      blocks.forEach(block => {
+        const blockEl = document.createElement('div');
+        blockEl.className = 'block';
+        blockEl.dataset.block = block.id;
+
+        blockEl.ondragover = (e) => {
+          allowDrop(e);
+          blockEl.classList.add('drag-over');
+        };
+        blockEl.ondragleave = () => blockEl.classList.remove('drag-over');
+        blockEl.ondrop = (e) => dropOnBlock(e, block.id);
+
+        const blockProjects = projects.filter(p => p.groupBlock === block.id &&
+          p.name.toLowerCase().includes(search));
+
+        const header = document.createElement('div');
+        header.className = 'block-header';
+
+        const titleWrap = document.createElement('div');
+        titleWrap.className = 'block-title-wrap';
+
+        const titleInput = document.createElement('input');
+        titleInput.className = 'block-title';
+        titleInput.value = block.name;
+        titleInput.onchange = (e) => renameBlock(block.id, e.target.value);
+        titleWrap.appendChild(titleInput);
+
+        const count = document.createElement('span');
+        count.className = 'block-count';
+        count.textContent = blockProjects.length;
+        titleWrap.appendChild(count);
+
+        header.appendChild(titleWrap);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'block-delete';
+        delBtn.innerHTML = '🗑️';
+        delBtn.title = 'Eliminar bloque';
+        delBtn.onclick = () => deleteBlock(block.id);
+        header.appendChild(delBtn);
+
+        blockEl.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'block-body';
+
+        if (blockProjects.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'block-empty';
+          empty.textContent = 'Arrastra proyectos aquí';
+          body.appendChild(empty);
+        } else {
+          blockProjects.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'jcard risk-' + p.risk;
+            card.draggable = true;
+            card.ondragstart = (e) => drag(e, p.id);
+            card.ondragend = dragEnd;
+
+            const name = document.createElement('div');
+            name.className = 'jcard-name';
+            name.textContent = p.name;
+            card.appendChild(name);
+
+            const meta = document.createElement('div');
+            meta.className = 'jcard-meta';
+            meta.textContent = 'Java: ' + p.javaFiles + ' · Score: ' + p.score.toFixed(1) + ' · ' + (p.riskLabel || '');
+            card.appendChild(meta);
+
+            body.appendChild(card);
+          });
+        }
+
+        blockEl.appendChild(body);
+        wrapper.appendChild(blockEl);
+      });
+
+      // "Add new block" card at the end
+      const addCard = document.createElement('div');
+      addCard.className = 'add-block-card';
+      addCard.textContent = '➕ Nuevo Bloque';
+      addCard.onclick = addNewBlock;
+      wrapper.appendChild(addCard);
+    }
+
+    // Init
+    initTheme();
+    loadProjects();
+    loadBlocks();
+    initGrouping();
+    renderAll();
+  </script>
+</body>
+
+</html>
