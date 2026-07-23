@@ -1,0 +1,3042 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Migracion JDK 17</title>
+  <style>
+    :root {
+      --bg: #eef6fb;
+      --panel: rgba(255, 255, 255, 0.86);
+      --panel-strong: #ffffff;
+      --ink: #061b34;
+      --muted: #52697f;
+      --line: rgba(4, 50, 99, 0.14);
+      --accent: #004481;
+      --accent-soft: #5bbeff;
+      --accent-2: #1464a5;
+      --good: #008a67;
+      --warn: #c47f00;
+      --bad: #b92a45;
+      --shadow: 0 18px 42px rgba(4, 50, 99, 0.14);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(73, 165, 230, 0.28), transparent 28%),
+        radial-gradient(circle at top right, rgba(0, 68, 129, 0.2), transparent 30%),
+        linear-gradient(180deg, #f4f9fd 0%, #dfeef8 100%);
+      min-height: 100vh;
+    }
+
+    .shell {
+      width: min(1380px, calc(100vw - 32px));
+      margin: 24px auto 40px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(230, 243, 252, 0.92));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -30px;
+      top: -30px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(73, 165, 230, 0.34), rgba(73, 165, 230, 0));
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.6rem);
+      max-width: 840px;
+      line-height: 0.95;
+    }
+
+    .subtitle {
+      max-width: 820px;
+      font-size: 1.02rem;
+      line-height: 1.6;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+
+    .hero-meta {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      border: 1px solid rgba(4, 50, 99, 0.18);
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font: inherit;
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .tab-button.active {
+      color: #fff;
+      background: linear-gradient(90deg, var(--accent), #1973b8);
+      border-color: transparent;
+      box-shadow: 0 12px 24px rgba(0, 68, 129, 0.22);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .pill {
+      border: 1px solid rgba(0, 68, 129, 0.2);
+      background: rgba(255, 255, 255, 0.65);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.88rem;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .two-col {
+      grid-template-columns: 1.2fr 0.8fr;
+    }
+
+    .card {
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .metric-value {
+      font-size: clamp(1.9rem, 3vw, 2.8rem);
+      line-height: 1;
+      margin-top: 16px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.92rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .metric-note {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .bars {
+      display: grid;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 200px 1fr 74px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .bar-label {
+      font-size: 0.94rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(32, 78, 95, 0.1);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), #49a5e6);
+    }
+
+    .bar-value {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .risk-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .coverage-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .coverage-meter {
+      display: grid;
+      gap: 14px;
+    }
+
+    .coverage-track {
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(4, 50, 99, 0.1);
+      overflow: hidden;
+    }
+
+    .coverage-fill {
+      height: 100%;
+      width: 85.1%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--good), #49a5e6);
+    }
+
+    .coverage-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .coverage-stat {
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.66);
+    }
+
+    .coverage-stat strong {
+      display: block;
+      font-size: 1.45rem;
+      line-height: 1;
+    }
+
+    .coverage-stat span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .risk-item {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.66);
+      border: 1px solid var(--line);
+    }
+
+    .risk-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.98rem;
+    }
+
+    .risk-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: 1.4fr 0.9fr 0.9fr 0.9fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .toggle-label {
+      align-self: end;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      text-transform: none;
+      letter-spacing: 0;
+      cursor: pointer;
+    }
+
+    .toggle-label input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .search-button {
+      align-self: end;
+      min-height: 42px;
+      border: 0;
+      border-radius: 7px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      padding: 0 18px;
+      cursor: pointer;
+    }
+
+    .search-button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .empty-state {
+      color: var(--muted);
+      text-align: center;
+      padding: 26px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid rgba(4, 50, 99, 0.18);
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--ink);
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(25, 115, 184, 0.14);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .table-wrap.sticky-table {
+      max-height: min(72vh, 760px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1080px;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #d9edf9;
+      text-align: left;
+      padding: 14px 12px;
+      font-size: 0.84rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+    }
+
+    tbody td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(4, 50, 99, 0.08);
+      font-size: 0.95rem;
+      vertical-align: top;
+    }
+
+    tbody tr:hover {
+      background: rgba(73, 165, 230, 0.1);
+    }
+
+    .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      border: 1px solid transparent;
+    }
+
+    .risk-high {
+      background: rgba(178, 58, 43, 0.12);
+      color: var(--bad);
+      border-color: rgba(178, 58, 43, 0.18);
+    }
+
+    .risk-medium {
+      background: rgba(182, 122, 27, 0.12);
+      color: var(--warn);
+      border-color: rgba(182, 122, 27, 0.18);
+    }
+
+    .risk-low {
+      background: rgba(47, 125, 87, 0.12);
+      color: var(--good);
+      border-color: rgba(47, 125, 87, 0.18);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .chain-flow {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .chain-node {
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      padding: 12px 14px;
+    }
+
+    .chain-arrow {
+      text-align: center;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .flow-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .flow-kpi {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      padding: 10px 12px;
+    }
+
+    .flow-kpi-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .flow-kpi-value {
+      margin-top: 4px;
+      font-size: 1.5rem;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .flow-note {
+      color: var(--muted);
+      font-size: 0.86rem;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .plan-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .plan-block {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .plan-block::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 6px;
+      background: linear-gradient(180deg, var(--accent), #49a5e6);
+    }
+
+    .plan-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+
+    .plan-date {
+      min-width: 110px;
+      text-align: right;
+      color: var(--accent);
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .plan-tag {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(32, 78, 95, 0.09);
+      color: var(--accent-2);
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+
+    .plan-text {
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.6;
+      margin: 0 0 14px;
+    }
+
+    .project-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .project-chip {
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+      padding: 7px 10px;
+      font-size: 0.82rem;
+    }
+
+    .project-chip--dense {
+      background: rgba(255, 250, 244, 0.92);
+    }
+
+    .block-count {
+      margin-left: 8px;
+      color: var(--accent-2);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .checklist {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 0.93rem;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .timeline-step {
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid var(--line);
+    }
+
+    .timeline-step strong {
+      display: block;
+      font-size: 1.1rem;
+      margin-bottom: 6px;
+    }
+
+    .timeline-step span {
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+
+    .dist-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+      margin-bottom: 22px;
+    }
+
+    .dist-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.78);
+      padding: 10px 12px;
+    }
+
+    .dist-label {
+      color: var(--muted);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .dist-value {
+      margin-top: 6px;
+      font-size: 1.45rem;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 1120px) {
+      .metrics,
+      .two-col,
+      .filters,
+      .plan-grid,
+      .coverage-grid,
+      .timeline {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .dist-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100vw - 18px, 1380px);
+        margin: 10px auto 26px;
+      }
+
+      .hero,
+      .card {
+        padding: 18px;
+        border-radius: 20px;
+      }
+
+      .metrics,
+      .two-col,
+      .filters,
+      .plan-grid,
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .dist-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .bar-row {
+        grid-template-columns: 1fr;
+      }
+
+      .plan-head {
+        flex-direction: column;
+      }
+
+      .plan-date {
+        text-align: left;
+      }
+
+      .bar-value {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <h1>Mapa Visual de Migracion de Java 8 a JDK 17</h1>
+      <p class="subtitle">
+        Vista ejecutiva y tecnica de los proyectos Java en esta carpeta. El foco no es solo compatibilidad de lenguaje: el principal coste esta en build reproducible, APIs retiradas del JDK y stacks legacy de Spring, Hibernate, Oracle y JMS.
+      </p>
+      <div class="hero-meta">
+        <span class="pill">134 proyectos Java de Ether</span>
+        <span class="pill">1196 ficheros .java</span>
+        <span class="pill">10 entradas soporte/no Java</span>
+        <span class="pill">22 proyectos Maven</span>
+        <span class="pill">112 sin build formal</span>
+        <span class="pill">11 con tests detectados</span>
+      </div>
+      <div class="tabs">
+        <button class="tab-button active" type="button" data-tab="overview">Dashboard</button>
+        <button class="tab-button" type="button" data-tab="plan">Plan Por Bloques</button>
+        <button class="tab-button" type="button" data-tab="properties">Properties</button>
+        <button class="tab-button" type="button" data-tab="scripts">Scripts</button>
+        <button class="tab-button" type="button" data-tab="workflows">Workflows/Eventos</button>
+        <button class="tab-button" type="button" data-tab="global-search">Buscador Global</button>
+        <button class="tab-button" type="button" data-tab="flow-e2e">Flujo End-to-End</button>
+        <button class="tab-button" type="button" data-tab="refinitiv-chain">Cadena Refinitiv</button>
+      </div>
+    </section>
+
+    <div id="tab-overview" class="tab-panel active">
+    <section class="grid metrics">
+      <article class="card">
+        <div class="metric-label">Riesgo dominante</div>
+        <div class="metric-value">Build</div>
+        <div class="metric-note">La mayoria de proyectos no tiene `pom.xml`. Antes de migrar a JDK 17, hay que conseguir compilacion repetible.</div>
+      </article>
+      <article class="card">
+        <div class="metric-label">Bloqueo fuerte</div>
+        <div class="metric-value">JAXB</div>
+        <div class="metric-note">La familia DeltaSSI usa `javax.xml.bind`, eliminada del JDK moderno y obligatoria de externalizar.</div>
+      </article>
+      <article class="card">
+        <div class="metric-label">Deuda de plataforma</div>
+        <div class="metric-value">Project*</div>
+        <div class="metric-note">Spring 3, Hibernate 3, Log4j 1 y plugins Maven antiguos encarecen mucho la migracion.</div>
+      </article>
+      <article class="card">
+        <div class="metric-label">Riesgo runtime</div>
+        <div class="metric-value">JMS + Oracle</div>
+        <div class="metric-note">Donde hay integracion real, compilar no basta: hace falta smoke + integracion con entorno DEV.</div>
+      </article>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <div class="section-title">
+        <div>
+          <h2>Cobertura runtime detectada</h2>
+          <p>Resumen visible del cruce general: que Java aparece o no aparece en properties, workflows/eventos y scripts.</p>
+        </div>
+        <div class="pill">114 / 134 Java con uso identificado</div>
+      </div>
+      <div class="coverage-grid">
+        <div class="coverage-meter">
+          <div class="coverage-track"><div class="coverage-fill"></div></div>
+          <div class="coverage-stats">
+            <div class="coverage-stat"><strong>85,1%</strong><span>Con evidencia o uso conocido</span></div>
+            <div class="coverage-stat"><strong>14,9%</strong><span>Pendiente de confirmar</span></div>
+            <div class="coverage-stat"><strong>20</strong><span>No aparecen en ningun sitio</span></div>
+          </div>
+        </div>
+        <div class="risk-list">
+          <div class="risk-item">
+            <strong>Donde ver el detalle</strong>
+            <span>Usa el filtro Aparicion = "No aparecen" en el Dashboard o baja a la tabla de Workflows/Eventos para ver los 20 pendientes estrictos.</span>
+          </div>
+          <div class="risk-item">
+            <strong>Lectura correcta</strong>
+            <span>Un Java pendiente no se considera desusado: solo falta confirmar si entra por script, Control-M, despliegue, llamada manual o dependencia interna.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid two-col">
+      <article class="card">
+        <div class="section-title">
+          <div>
+            <h2>Top Proyectos Mas Costosos</h2>
+            <p>Esfuerzo relativo normalizado, donde el maximo vale 100%.</p>
+          </div>
+        </div>
+        <div class="bars" id="top-bars"></div>
+      </article>
+      <article class="card">
+        <div class="section-title">
+          <div>
+            <h2>Hallazgos Clave</h2>
+            <p>Patrones que mas penalizan una subida limpia a JDK 17.</p>
+          </div>
+        </div>
+        <div class="risk-list">
+          <div class="risk-item">
+            <strong>JAXB fuera del JDK</strong>
+            <span>DeltaSSIs, DeltaSSIsFX y DeltaSSIProject rompen compilacion si no se anaden dependencias JAXB externas.</span>
+          </div>
+          <div class="risk-item">
+            <strong>Clases internas `com.sun.*`</strong>
+            <span>ProjectSQL usa `CachedRowSetImpl`, una API interna fragil para JDK 17.</span>
+          </div>
+          <div class="risk-item">
+            <strong>Stacks legacy de framework</strong>
+            <span>La familia Project* arrastra Spring 3, Hibernate 3 y Log4j 1: el coste esta en la plataforma, no en la sintaxis Java.</span>
+          </div>
+          <div class="risk-item">
+            <strong>Integracion sensible</strong>
+            <span>servicesRDR mezcla sockets, comandos externos, validacion XML y JMS. Es un proyecto de alta necesidad de prueba funcional.</span>
+          </div>
+          <div class="risk-item">
+            <strong>Muy pocos tests</strong>
+            <span>Solo 9 proyectos tienen tests detectables. El mayor riesgo no es migrar; es no saber si rompes comportamiento.</span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="card" style="margin-top: 18px;">
+      <div class="section-title">
+        <div>
+          <h2>Explorador Detallado</h2>
+          <p>Filtra y ordena los Java del repo real o cambia el alcance para ver todo el inventario local detectado.</p>
+        </div>
+        <div id="results-count" class="pill">0 proyectos</div>
+      </div>
+
+      <div class="filters" style="grid-template-columns:1.1fr 1.3fr 0.9fr 0.8fr 0.8fr 0.8fr">
+        <div>
+          <label for="scopeFilter">Alcance</label>
+          <select id="scopeFilter">
+            <option value="repo">Lista Ether real (134)</option>
+            <option value="local">Inventario local completo</option>
+          </select>
+        </div>
+        <div>
+          <label for="search">Buscar proyecto</label>
+          <input id="search" type="text" placeholder="Delta, Project, refinitiv..." />
+        </div>
+        <div>
+          <label for="runtimeFilter">Aparicion</label>
+          <select id="runtimeFilter">
+            <option value="all">Todos</option>
+            <option value="found">Aparecen</option>
+            <option value="missing">No aparecen</option>
+            <option value="known">Uso conocido</option>
+          </select>
+        </div>
+        <div>
+          <label for="riskFilter">Nivel de riesgo</label>
+          <select id="riskFilter">
+            <option value="all">Todos</option>
+            <option value="high">Alto</option>
+            <option value="medium">Medio</option>
+            <option value="low">Bajo</option>
+          </select>
+        </div>
+        <div>
+          <label for="buildFilter">Build</label>
+          <select id="buildFilter">
+            <option value="all">Todos</option>
+            <option value="maven">Con pom.xml</option>
+            <option value="no-maven">Sin pom.xml</option>
+          </select>
+        </div>
+        <div>
+          <label for="sortBy">Orden</label>
+          <select id="sortBy">
+            <option value="score-desc">Mayor esfuerzo</option>
+            <option value="score-asc">Menor esfuerzo</option>
+            <option value="name-asc">Nombre A-Z</option>
+            <option value="java-desc">Mas Java</option>
+            <option value="tests-desc">Mas tests</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="badge risk-high">Riesgo alto</span>
+        <span class="badge risk-medium">Riesgo medio</span>
+        <span class="badge risk-low">Riesgo bajo</span>
+      </div>
+
+      <div class="table-wrap sticky-table" style="margin-top: 14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>Aparece en</th>
+              <th>Riesgo</th>
+              <th class="num">Esfuerzo %</th>
+              <th class="num">Score</th>
+              <th class="num">Java</th>
+              <th>Build</th>
+              <th class="num">Tests</th>
+              <th class="num">JAXB</th>
+              <th class="num">JPA</th>
+              <th class="num">Mail</th>
+              <th class="num">WS</th>
+              <th class="num">Sun</th>
+              <th class="num">Sec</th>
+              <th class="num">JMS</th>
+              <th class="num">XML</th>
+              <th>Comentario</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+
+      <p class="footer-note">
+        Por defecto se muestra la lista real de Ether validada. Cambia el alcance a <strong>Inventario local completo</strong> para ver cualquier carpeta Java adicional detectada en local.
+      </p>
+    </section>
+    </div>
+
+    <div id="tab-properties" class="tab-panel">
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Mapa Properties ↔ Proyectos Java</h2>
+            <p>Cruze entre los 88 JARs referenciados en properties y los proyectos Java del repositorio. Directorio analizado: <code>dat/properties</code>.</p>
+          </div>
+          <div id="prop-count" class="pill">0 proyectos</div>
+        </div>
+        <div class="filters" style="grid-template-columns:1.6fr 0.8fr">
+          <div>
+            <label for="prop-search">Buscar proyecto o properties</label>
+            <input id="prop-search" type="text" placeholder="DeltaSSIs, SSIsAlert, ConTotal..." />
+          </div>
+          <div>
+            <label for="prop-status">Mostrar</label>
+            <select id="prop-status">
+              <option value="all">Todos</option>
+              <option value="found">Con properties</option>
+              <option value="missing">Sin properties</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:22px;margin-bottom:10px">
+          <div>
+            <h3>Distribucion: javas unicos por properties</h3>
+            <p>Conteo de ficheros <code>.properties</code> segun numero de JARs unicos referenciados.</p>
+          </div>
+        </div>
+        <div id="prop-dist-cards" class="dist-grid"></div>
+
+        <div class="section-title" style="margin-top:8px;margin-bottom:10px">
+          <div><h3>Properties con 2 o mas javas unicos <span style="color:var(--accent-2);font-size:0.9rem">complejidad de orquestacion</span></h3></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Properties</th>
+              <th class="num"># Jars unicos</th>
+              <th>Lista de jars unicos</th>
+            </tr></thead>
+            <tbody id="prop-tbody-multi"></tbody>
+          </table>
+        </div>
+
+        <div class="section-title" style="margin-top:22px;margin-bottom:10px">
+          <div><h3>Proyectos invocados desde properties <span style="color:var(--good);font-size:0.9rem">&#x2713; con referencia</span></h3></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Proyecto Java</th>
+              <th>JAR</th>
+              <th class="num"># Properties</th>
+              <th>Properties que lo invocan</th>
+            </tr></thead>
+            <tbody id="prop-tbody-found"></tbody>
+          </table>
+        </div>
+
+        <div class="section-title" style="margin-top:28px;margin-bottom:10px">
+          <div><h3>Proyectos sin properties detectado <span style="color:var(--warn);font-size:0.9rem">&#x26A0; revisar workflows o scripts</span></h3></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Proyecto Java</th>
+              <th colspan="3">Nota</th>
+            </tr></thead>
+            <tbody id="prop-tbody-missing"></tbody>
+          </table>
+        </div>
+        <p class="footer-note">Los proyectos sin properties pueden estar invocados desde workflows, scripts <code>.sh</code> o arrancados como servicios. El siguiente paso es analizar los workflows.</p>
+      </section>
+    </div>
+
+    <div id="tab-scripts" class="tab-panel">
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Mapa Scripts .sh ↔ Proyectos Java</h2>
+            <p>Cruce entre scripts de <code>scrt</code> y proyectos Java de Ether detectados por referencia de nombre/JAR.</p>
+          </div>
+          <div id="scripts-count" class="pill">0 proyectos</div>
+        </div>
+
+        <div class="filters" style="grid-template-columns:1.4fr 0.7fr 0.7fr">
+          <div>
+            <label for="scripts-search">Buscar proyecto o script</label>
+            <input id="scripts-search" type="text" placeholder="RDR_Extraction_CPARTYS, RDR_Extraccion_Generica.sh..." />
+          </div>
+          <div>
+            <label for="scripts-min">Min # scripts</label>
+            <select id="scripts-min">
+              <option value="1">1+</option>
+              <option value="2">2+</option>
+              <option value="5">5+</option>
+              <option value="10">10+</option>
+            </select>
+          </div>
+          <div>
+            <label for="scripts-sort">Orden</label>
+            <select id="scripts-sort">
+              <option value="count-desc">Mas scripts</option>
+              <option value="count-asc">Menos scripts</option>
+              <option value="name-asc">Proyecto A-Z</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Proyecto Java</th>
+              <th class="num"># Scripts</th>
+              <th>Scripts detectados</th>
+            </tr></thead>
+            <tbody id="scripts-tbody"></tbody>
+          </table>
+        </div>
+        <p class="footer-note">Referencia detectada por texto de proyecto/JAR dentro de scripts <code>.sh</code> en <code>scrt</code>. No distingue por si sola entre JAR principal y dependencia de classpath.</p>
+      </section>
+    </div>
+
+    <div id="tab-global-search" class="tab-panel">
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Buscador Global de Referencias</h2>
+            <p>Busca cualquier proyecto Java, JAR, clase o texto en properties, scripts, workflows, configuraciones y codigo fuente del workspace.</p>
+          </div>
+          <div id="global-search-count" class="pill">Sin busqueda</div>
+        </div>
+        <form id="global-search-form" class="filters" style="grid-template-columns:1.8fr 0.55fr 0.55fr 0.55fr auto">
+          <div>
+            <label for="global-search-query">Texto o Java a buscar</label>
+            <input id="global-search-query" type="search" required placeholder="DeltaSSIs, RDR_ConTotal.jar, una clase, una propiedad..." autocomplete="off" />
+          </div>
+          <label class="toggle-label"><input id="global-search-word" type="checkbox" /> Palabra completa</label>
+          <label class="toggle-label"><input id="global-search-regex" type="checkbox" /> Regex</label>
+          <label class="toggle-label"><input id="global-search-case" type="checkbox" /> Mayusculas</label>
+          <button id="global-search-submit" class="search-button" type="submit">Buscar</button>
+        </form>
+        <p id="global-search-status" class="footer-note">Inicia el dashboard con <code>start_global_search_dashboard.ps1</code> para consultar los archivos reales.</p>
+        <div class="table-wrap" style="margin-top:14px">
+          <table>
+            <thead><tr>
+              <th>Origen</th>
+              <th>Referencia encontrada</th>
+              <th>Proyecto / Java relacionado</th>
+              <th>Detalle operativo</th>
+            </tr></thead>
+            <tbody id="global-search-results">
+              <tr><td colspan="4" class="empty-state">Escribe un proyecto, JAR, workflow o propiedad para ver sus relaciones operativas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="tab-workflows" class="tab-panel">
+      <section class="grid metrics">
+        <article class="card">
+          <div class="metric-label">Workflows analizados</div>
+          <div class="metric-value">753</div>
+          <div class="metric-note">Ficheros `.gsp` revisados bajo `custom/configuration/workflows`.</div>
+        </article>
+        <article class="card">
+          <div class="metric-label">Eventos analizados</div>
+          <div class="metric-value">416</div>
+          <div class="metric-note">Eventos `GenericEvent` y `OnJMSMessage` cruzados contra workflows.</div>
+        </article>
+        <article class="card">
+          <div class="metric-label">Actividades Java</div>
+          <div class="metric-value">109</div>
+          <div class="metric-note">Actividades con nombre Java o evidencia de ejecucion Java.</div>
+        </article>
+        <article class="card">
+          <div class="metric-label">Eventos criticos</div>
+          <div class="metric-value">18</div>
+          <div class="metric-note">Eventos que disparan workflows con actividad Java.</div>
+        </article>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <div class="section-title">
+            <div>
+              <h2>Tipos de evidencia</h2>
+              <p>Clasificacion de handlers extraidos de los workflows.</p>
+            </div>
+          </div>
+          <div class="bars" id="workflow-category-bars"></div>
+        </article>
+        <article class="card">
+          <div class="section-title">
+            <div>
+              <h2>Lectura operativa</h2>
+              <p>Por que estos workflows entran en pruebas JDK 17.</p>
+            </div>
+          </div>
+          <div class="risk-list">
+            <div class="risk-item">
+              <strong>CommandLine dinamico</strong>
+              <span>Muchos pasos `CALL JAVA` ejecutan variables como `cmd`, `script` o `comando`; el JAR real se resuelve en runtime.</span>
+            </div>
+            <div class="risk-item">
+              <strong>Eventos como entrada real</strong>
+              <span>Los eventos `GenericEvent` y `OnJMSMessage` pueden activar workflows que lanzan Java aunque el proyecto no aparezca en properties.</span>
+            </div>
+            <div class="risk-item">
+              <strong>Prueba obligatoria</strong>
+              <span>Para JDK 17 hay que capturar el comando final resuelto y ejecutar smoke con datos o mensajes anonimizados.</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Cobertura runtime de los Java</h2>
+            <p>Cruce general de proyectos Java contra properties, workflows y eventos GoldenSource.</p>
+          </div>
+          <div class="pill">114 / 134 con uso identificado</div>
+        </div>
+        <div class="coverage-grid">
+          <div class="coverage-meter">
+            <div class="coverage-track"><div class="coverage-fill"></div></div>
+            <div class="coverage-stats">
+              <div class="coverage-stat"><strong>85,1%</strong><span>Con evidencia o uso conocido</span></div>
+              <div class="coverage-stat"><strong>14,9%</strong><span>Pendiente de confirmar</span></div>
+              <div class="coverage-stat"><strong>20</strong><span>No aparecen en ningun sitio</span></div>
+            </div>
+            <p class="footer-note">Los pendientes no se dan por desusados: requieren revisar scripts, Control-M, despliegues, llamadas manuales o dependencias internas.</p>
+          </div>
+          <div class="risk-list">
+            <div class="risk-item">
+              <strong>Cubierto</strong>
+              <span>Aparece en `NomPaquete*`, en un workflow/evento, en scripts `scrt`, como JAR principal o como dependencia de classpath.</span>
+            </div>
+            <div class="risk-item">
+              <strong>Pendiente</strong>
+              <span>No se ha encontrado referencia estatica clara. Puede ser libreria interna, duplicado, version antigua o ejecucion externa.</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:22px;margin-bottom:10px">
+          <div>
+            <h3>Java que no aparece ni en properties, workflows/eventos ni scripts <span style="color:var(--warn);font-size:0.9rem">20 pendientes estrictos</span></h3>
+          </div>
+        </div>
+        <div class="section-title" style="margin-top:18px;margin-bottom:10px">
+          <div>
+            <h3>Uso conocido por contexto operativo <span style="color:var(--good);font-size:0.9rem">2 identificados</span></h3>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-bottom:18px">
+          <table>
+            <thead><tr>
+              <th>Proyecto Java</th>
+              <th>Uso confirmado</th>
+            </tr></thead>
+            <tbody id="operational-known-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Proyecto Java</th>
+              <th class="num">Archivos Java</th>
+              <th>Lectura</th>
+              <th>Siguiente comprobacion</th>
+            </tr></thead>
+            <tbody id="runtime-uncovered-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Workflow X llama al Java Y</h2>
+            <p>Cada fila se lee literalmente: en ese workflow se ejecuta ese JAR, clase main o comando Java dinamico.</p>
+          </div>
+          <div id="workflow-count" class="pill">0 workflows</div>
+        </div>
+        <div class="filters" style="grid-template-columns:1.4fr 0.7fr 0.7fr">
+          <div>
+            <label for="workflow-search">Buscar workflow, Java o JAR</label>
+            <input id="workflow-search" type="text" placeholder="DeltaSSIs, Refinitiv_Ratings.jar, Alert, Fileloading..." />
+          </div>
+          <div>
+            <label for="workflow-zone">Zona</label>
+            <select id="workflow-zone"><option value="all">Todas</option></select>
+          </div>
+          <div>
+            <label for="workflow-status">Mostrar</label>
+            <select id="workflow-status">
+              <option value="all">Todos</option>
+              <option value="resolved">Java identificado</option>
+              <option value="pending">Dinamico o pendiente</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>En el workflow</th>
+              <th>Zona</th>
+              <th>Se llama al Java</th>
+              <th>Librerias / classpath</th>
+              <th>Evidencia</th>
+              <th>Fichero GSP</th>
+              <th>Riesgo runtime</th>
+            </tr></thead>
+            <tbody id="workflow-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Eventos que disparan esos workflows</h2>
+            <p>Entradas operativas que deben probarse en DEV para validar la migracion.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Evento</th>
+              <th>Tipo</th>
+              <th>Workflow lanzado</th>
+            </tr></thead>
+            <tbody id="workflow-events-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="tab-flow-e2e" class="tab-panel">
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Mapa global de flujo</h2>
+            <p>Vista de extremo a extremo: Properties/Scripts -> Eventos -> Workflows -> Java para todos los casos mapeados.</p>
+          </div>
+          <div id="flow-count" class="pill">0 workflows</div>
+        </div>
+
+        <div id="flow-summary" class="flow-summary"></div>
+
+        <div class="filters" style="grid-template-columns:1.2fr 0.8fr 1fr 1fr;margin-top:14px">
+          <div>
+            <label for="flow-search">Buscar workflow, evento, java, properties o script</label>
+            <input id="flow-search" type="text" placeholder="Refinitiv, SSIs, API_REST, RDR_..." />
+          </div>
+          <div>
+            <label for="flow-event">Tiene evento</label>
+            <select id="flow-event">
+              <option value="all">Todos</option>
+              <option value="yes">Si</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div>
+            <label for="flow-upstream">Origen aguas arriba</label>
+            <select id="flow-upstream">
+              <option value="all">Todos</option>
+              <option value="direct-props">Properties directas al workflow</option>
+              <option value="props-java">Properties por Java</option>
+              <option value="scripts-java">Scripts por Java</option>
+              <option value="none">Sin origen detectado</option>
+            </select>
+          </div>
+          <div>
+            <label for="flow-chain">Cadena completa</label>
+            <select id="flow-chain">
+              <option value="all">Todos</option>
+              <option value="full">Evento + origen + Java</option>
+              <option value="partial">Parcial</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:12px">
+          <table>
+            <thead><tr>
+              <th>Workflow</th>
+              <th>Java objetivo</th>
+              <th>Evento(s) que lo llaman</th>
+              <th>Properties directas al workflow</th>
+              <th>Properties relacionadas por Java</th>
+              <th>Scripts relacionados por Java</th>
+              <th>Flujo</th>
+            </tr></thead>
+            <tbody id="flow-tbody"></tbody>
+          </table>
+        </div>
+
+        <p class="flow-note">Properties directas significa evidencia explicita de workflow en properties (ejemplo: NomWorkflow). Properties/Scripts por Java significa enlace inferido porque apuntan al mismo proyecto Java objetivo del workflow.</p>
+      </section>
+    </div>
+
+    <div id="tab-refinitiv-chain" class="tab-panel">
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Cadena de orquestacion Refinitiv</h2>
+            <p>Seccion separada dentro del dashboard para validar el flujo Properties -> Workflow/Evento -> Subworkflow -> Java.</p>
+          </div>
+          <div class="pill">Caso: Refinitiv_Ratings</div>
+        </div>
+        <div class="risk-list">
+          <div class="risk-item">
+            <strong>Veredicto</strong>
+            <span>La cadena es posible y esta observada con evidencia estatica en properties, GSP y mapeo workflow-java.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <div class="section-title">
+            <div>
+              <h2>Cadena principal</h2>
+              <p>Flujo mas directo identificado en el analisis.</p>
+            </div>
+          </div>
+          <div class="chain-flow">
+            <div class="chain-node"><strong>1) Properties</strong><br>NomWorkflow=Refinitiv_Request_Response</div>
+            <div class="chain-arrow">v</div>
+            <div class="chain-node"><strong>2) Workflow principal</strong><br>Refinitiv_Request_Response</div>
+            <div class="chain-arrow">v</div>
+            <div class="chain-node"><strong>3) Subworkflow</strong><br>Refinitiv_Load_Ratings</div>
+            <div class="chain-arrow">v</div>
+            <div class="chain-node"><strong>4) Java/Jar asociado</strong><br>Refinitiv_Ratings.jar</div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="section-title">
+            <div>
+              <h2>Via alternativa por evento</h2>
+              <p>Ruta adicional de entrada operativa.</p>
+            </div>
+          </div>
+          <div class="chain-flow">
+            <div class="chain-node"><strong>1) Evento</strong><br>events/GenericEvent/Refinitiv_Request_Response.gsp</div>
+            <div class="chain-arrow">v</div>
+            <div class="chain-node"><strong>2) Workflow destino</strong><br>Refinitiv_Request_Response</div>
+            <div class="chain-arrow">v</div>
+            <div class="chain-node"><strong>3) Subworkflow + Java</strong><br>Refinitiv_Load_Ratings -> Refinitiv_Ratings.jar</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Evidencia de properties</h2>
+            <p>Referencias directas a NomWorkflow en properties productivas.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Properties</th>
+              <th class="num">Linea</th>
+              <th>Evidencia</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>RDR_Refinitiv_REQ_RES.properties</td><td class="num">8</td><td>NomWorkflow=Refinitiv_Request_Response</td></tr>
+              <tr><td>RefinitivIssueMultiRequest.properties</td><td class="num">8</td><td>NomWorkflow=Refinitiv_Request_Response</td></tr>
+              <tr><td>RefinitivIssuerBatchRequest.properties</td><td class="num">8</td><td>NomWorkflow=Refinitiv_Request_Response</td></tr>
+              <tr><td>Refinitiv_Undly_Enrichment_futures.properties</td><td class="num">8</td><td>NomWorkflow=Refinitiv_Request_Response</td></tr>
+              <tr><td>Refinitiv_Undly_Enrichment_issues.properties</td><td class="num">8</td><td>NomWorkflow=Refinitiv_Request_Response</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <div class="section-title">
+          <div>
+            <h2>Evidencia de workflows y eventos</h2>
+            <p>Trazas clave del encadenado en configuracion GoldenSource.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>GSP</th>
+              <th class="num">Linea</th>
+              <th>Evidencia</th>
+              <th>Lectura</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>events/GenericEvent/Refinitiv_Request_Response.gsp</td><td class="num">10</td><td>&lt;workflow&gt;Refinitiv_Request_Response&lt;/workflow&gt;</td><td>Evento dispara workflow principal</td></tr>
+              <tr><td>workflows/.../Refinitiv_Request_Response.gsp</td><td class="num">927 / 955</td><td>Refinitiv_Load_Ratings</td><td>Encadenado a subworkflow</td></tr>
+              <tr><td>workflows/.../Refinitiv_Load_Ratings.gsp</td><td class="num">715</td><td>&lt;name&gt;Refinitiv_Load_Ratings&lt;/name&gt;</td><td>Workflow existente y activo</td></tr>
+              <tr><td>workflows/.../Refinitiv_Load_Ratings.gsp</td><td class="num">352</td><td>'Refinitiv_Ratings'</td><td>Traza funcional hacia componente de ratings</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="footer-note">La seccion es explicativa y no cambia el calculo de cobertura global ni la logica de las demas pestanas.</p>
+      </section>
+    </div>
+
+    <div id="tab-plan" class="tab-panel">
+      <section class="card" style="margin-top: 18px;">
+        <div class="section-title">
+          <div>
+            <h2>Division Recomendada de Subidas</h2>
+            <p>Tres ventanas de entrega y cuatro bloques logicos, separando `rdrRules` por su uso transversal.</p>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="timeline-step">
+            <strong>12/09</strong>
+            <span>Bloque 1 de bajo a medio riesgo. Objetivo: asegurar primeras subidas con proyectos Maven acotados y build estable.</span>
+          </div>
+          <div class="timeline-step">
+            <strong>03/10</strong>
+            <span>Bloque exclusivo de `rdrRules`. Va separado porque es transversal y tiene mayor impacto funcional dentro del ecosistema.</span>
+          </div>
+          <div class="timeline-step">
+            <strong>07/11</strong>
+            <span>Dos corrientes paralelas: bloque 3 para incompatibilidades tecnicas localizadas y bloque 4 para legacy/plataforma de mayor riesgo.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="plan-grid">
+        <article class="card plan-block">
+          <div class="plan-head">
+            <div>
+              <h3>Bloque 1</h3>
+              <div class="plan-tag">Entrega 12/09 · Primera ola</div>
+            </div>
+            <div class="plan-date">12/09</div>
+          </div>
+          <p class="plan-text">
+            Subida de proyectos con mejor relacion riesgo/beneficio. La idea es convertir esta ola en plantilla de migracion para el resto: toolchain Maven, validacion con JDK 17 y smoke tests de ejecucion.
+          </p>
+          <div class="project-cloud">
+            <span class="project-chip">RDR_CargadorIssueMex</span>
+            <span class="project-chip">ExtraccionGenericaUnificada</span>
+            <span class="project-chip">XMASToken</span>
+            <span class="project-chip">openFigi</span>
+            <span class="project-chip">RDR_CargadorThirdparties</span>
+            <span class="project-chip">rdr_bajas_comex</span>
+            <span class="project-chip">RDR_FormatoUnicoBaskets</span>
+            <span class="project-chip">MENTOR_Difusion</span>
+            <span class="project-chip">ExtraccionGenericaOtherEntities</span>
+            <span class="project-chip">RDR_LoadBasketsAdHoc</span>
+          </div>
+          <ul class="checklist">
+            <li>Subir plugins Maven y fijar `release 17`.</li>
+            <li>Ejecutar test y smoke de `main` donde existan.</li>
+            <li>Usar esta ola para cerrar checklist comun de migracion.</li>
+          </ul>
+          <div class="section-title" style="margin-top: 18px; margin-bottom: 10px;">
+            <div>
+              <h3>Todos los proyectos asignados<span id="block1-count" class="block-count"></span></h3>
+            </div>
+          </div>
+          <div id="block1-projects" class="project-cloud"></div>
+        </article>
+
+        <article class="card plan-block">
+          <div class="plan-head">
+            <div>
+              <h3>Bloque 2 · rdrRules</h3>
+              <div class="plan-tag">Entrega 03/10 · Separado por criticidad</div>
+            </div>
+            <div class="plan-date">03/10</div>
+          </div>
+          <p class="plan-text">
+            `rdrRules` debe viajar solo. Aunque no sea el score maximo del inventario, funcionalmente es de alto impacto porque se reutiliza mas dentro del proyecto y arrastra mas riesgo de regresion operativa.
+          </p>
+          <div class="project-cloud">
+            <span class="project-chip">rdrRules</span>
+          </div>
+          <ul class="checklist">
+            <li>Revisar JavaMail/Activation y compatibilidad de dependencias.</li>
+            <li>Montar regresion funcional con entradas reales anonimizadas.</li>
+            <li>Validar consumo desde componentes dependientes antes de cerrar la subida.</li>
+          </ul>
+          <div class="section-title" style="margin-top: 18px; margin-bottom: 10px;">
+            <div>
+              <h3>Todos los proyectos asignados<span id="block2-count" class="block-count"></span></h3>
+            </div>
+          </div>
+          <div id="block2-projects" class="project-cloud"></div>
+        </article>
+
+        <article class="card plan-block">
+          <div class="plan-head">
+            <div>
+              <h3>Bloque 3</h3>
+              <div class="plan-tag">Entrega 07/11 · Incompatibilidades tecnicas localizadas</div>
+            </div>
+            <div class="plan-date">07/11</div>
+          </div>
+          <p class="plan-text">
+            Proyectos con cambio tecnico claro pero acotable: JAXB, JPA y mezcla de versiones Spring/Spring Boot. Son dificiles, pero tienen un patron de remediacion mas definido que el legacy duro.
+          </p>
+          <div class="project-cloud">
+            <span class="project-chip">DeltaSSIProject</span>
+            <span class="project-chip">DeltaSSIs</span>
+            <span class="project-chip">DeltaSSIsFX</span>
+            <span class="project-chip">refinitivFilter</span>
+            <span class="project-chip">sectorclassificationloader</span>
+            <span class="project-chip">refinitivderivativesloader</span>
+            <span class="project-chip">RDR_SectorizacionEmisores</span>
+          </div>
+          <ul class="checklist">
+            <li>Externalizar JAXB y revisar el modelo XML de salida.</li>
+            <li>Alinear versiones Spring y Boot antes de subir a JDK 17.</li>
+            <li>Retirar patrones de test basados en `SecurityManager`.</li>
+          </ul>
+          <div class="section-title" style="margin-top: 18px; margin-bottom: 10px;">
+            <div>
+              <h3>Todos los proyectos asignados<span id="block3-count" class="block-count"></span></h3>
+            </div>
+          </div>
+          <div id="block3-projects" class="project-cloud"></div>
+        </article>
+
+        <article class="card plan-block">
+          <div class="plan-head">
+            <div>
+              <h3>Bloque 4</h3>
+              <div class="plan-tag">Entrega 07/11 · Corriente legacy/plataforma</div>
+            </div>
+            <div class="plan-date">07/11</div>
+          </div>
+          <p class="plan-text">
+            Este bloque comparte fecha con el bloque 3, pero conviene tratarlo como stream independiente. Aqui el coste ya no es solo migrar JDK: hay que estabilizar framework, build y dependencias de infraestructura.
+          </p>
+          <div class="project-cloud">
+            <span class="project-chip">ProjectDAO</span>
+            <span class="project-chip">ProjectSQL</span>
+            <span class="project-chip">ProjectMain</span>
+            <span class="project-chip">servicesRDR</span>
+            <span class="project-chip">RDR_Extraction_CPARTYS</span>
+            <span class="project-chip">concurrenteRDR</span>
+            <span class="project-chip">RDR_ConciliaColombia</span>
+          </div>
+          <ul class="checklist">
+            <li>Revisar Spring 3, Hibernate 3, Log4j 1 y plugins Maven antiguos.</li>
+            <li>Sustituir usos de `com.sun.*` y dependencias no estables.</li>
+            <li>Planificar pruebas de integracion con Oracle, JMS, sockets y comandos externos.</li>
+          </ul>
+          <div class="section-title" style="margin-top: 18px; margin-bottom: 10px;">
+            <div>
+              <h3>Todos los proyectos asignados<span id="block4-count" class="block-count"></span></h3>
+            </div>
+          </div>
+          <div id="block4-projects" class="project-cloud"></div>
+        </article>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const data = [
+      { project: "DeltaSSIs", score: 334.6, javaFiles: 11, hasPom: false, testFiles: 0, jaxb: 83, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 51 },
+      { project: "DeltaSSIsFX", score: 334.6, javaFiles: 11, hasPom: false, testFiles: 0, jaxb: 83, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 51 },
+      { project: "DeltaSSIProject", score: 334.6, javaFiles: 11, hasPom: false, testFiles: 0, jaxb: 83, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 51 },
+      { project: "refinitivderivativesloader", score: 306.2, javaFiles: 49, hasPom: true, testFiles: 0, jaxb: 0, jpa: 197, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "servicesRDR", score: 221, javaFiles: 36, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 1, sec: 1, jms: 56, xml: 73 },
+      { project: "RDR_SectorizacionEmisores", score: 137.2, javaFiles: 28, hasPom: true, testFiles: 17, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 28, jms: 0, xml: 0 },
+      { project: "sectorclassificationloader", score: 134.2, javaFiles: 24, hasPom: true, testFiles: 0, jaxb: 0, jpa: 82, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "rdrRules", score: 93.2, javaFiles: 74, hasPom: true, testFiles: 5, jaxb: 0, jpa: 0, mail: 10, ws: 0, sun: 0, sec: 0, jms: 0, xml: 13 },
+      { project: "RDR_Extraction_CPARTYS", score: 86.4, javaFiles: 18, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 231 },
+      { project: "refinitivFilter", score: 84.7, javaFiles: 21, hasPom: true, testFiles: 0, jaxb: 0, jpa: 46, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "concurrenteRDR", score: 77.2, javaFiles: 14, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 203 },
+      { project: "RDR_ConciliaColombia", score: 75.8, javaFiles: 4, hasPom: false, testFiles: 0, jaxb: 12, jpa: 0, mail: 0, ws: 0, sun: 1, sec: 0, jms: 0, xml: 1 },
+      { project: "RDRProcessFile", score: 66.6, javaFiles: 54, hasPom: false, testFiles: 15, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_ConTotal", score: 65.4, javaFiles: 46, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "anna_download", score: 59.2, javaFiles: 34, hasPom: true, testFiles: 0, jaxb: 6, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 8 },
+      { project: "JSON_Altamira", score: 57.3, javaFiles: 37, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ProjectDAO", score: 54.3, javaFiles: 32, hasPom: true, testFiles: 0, jaxb: 0, jpa: 15, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargadorEntity", score: 53.2, javaFiles: 28, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 1, jms: 0, xml: 0 },
+      { project: "CargaMentor_LA", score: 46.8, javaFiles: 24, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 6 },
+      { project: "RDR_Refinitiv_Request", score: 38.5, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 1, sec: 0, jms: 0, xml: 11 },
+      { project: "LegalOpinion", score: 38.4, javaFiles: 16, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "TSEC_Generator", score: 37.5, javaFiles: 15, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Legal_Opinion_Cargador", score: 37.5, javaFiles: 15, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Investors_csv_process", score: 36.9, javaFiles: 21, hasPom: false, testFiles: 1, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Borrado_Emisiones", score: 36.6, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 2, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 1 },
+      { project: "RDR_MifidII", score: 35.7, javaFiles: 13, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "AltaFondos_Genera_csv", score: 35.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 1, jms: 0, xml: 0 },
+      { project: "RDR_Emisiones_PLSQL", score: 33.9, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 2, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 1 },
+      { project: "javacsv", score: 33.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 2, jms: 0, xml: 0 },
+      { project: "ProjectSQL", score: 33.3, javaFiles: 9, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 3, sec: 0, jms: 0, xml: 6 },
+      { project: "NormativosUtilidades", score: 33, javaFiles: 10, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargadorSCIs", score: 33, javaFiles: 10, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "UtilsCSV", score: 33, javaFiles: 10, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "AlertFXFndmngrReceive", score: 32.7, javaFiles: 9, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 3 },
+      { project: "clientelaBDI_Altas_response", score: 32.1, javaFiles: 9, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_ConciliaInstLiqAbaco5", score: 32.1, javaFiles: 9, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "AltasBajas_Indices", score: 32.1, javaFiles: 9, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "clientelaBDI_Altas_responseSCF", score: 32.1, javaFiles: 9, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "LEI_Register_response", score: 32.1, javaFiles: 9, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargadorSDIs", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ExtraccionGenericaCPTY", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_ConciliaSwiftAbaco", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_ConciliaInstLiqAbaco", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ReporteSimulacionCierreOficinas", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargadorContactos", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Investors_Client_Reg_resp", score: 31.2, javaFiles: 8, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "DataQualityContact", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargaCAC1", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RC_Contacts", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "clientelaBDI_Altas_request", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "maestroEmisionesRDR2", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_GestionCpartyC460", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "LEI_Register_request", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_PLSQL", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "maestroEmisionesRDR", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_cuentaBajaAlta", score: 30.3, javaFiles: 7, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargaCacheOLAP", score: 29.8, javaFiles: 4, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 11 },
+      { project: "TraductorXML", score: 29.5, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 14 },
+      { project: "AltamiraMexicoConciliacion", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "LegalOpinionResponse", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_AlertasCocinado", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "AltaFondos_CuadreCarga", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "CSVToXML_Layout", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_ConciliaContactosAbaco", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Refinitiv_Ratings", score: 29.4, javaFiles: 6, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CrearIndices_Emisiones", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_INFCIERRE_REPORTE", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Historificacion_Emisiones", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargaCacheCAC1", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "maestroEmisionesMergeRDR", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "SDIs_Duplicidades", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "SimulacionCierreOficinas", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ReporteInfCierre", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_AlertasBarrido", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Report", score: 28.5, javaFiles: 5, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDRCommon", score: 28.3, javaFiles: 11, hasPom: false, testFiles: 1, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 2 },
+      { project: "API_REST", score: 27.6, javaFiles: 4, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "SCIs_Duplicidades", score: 27.6, javaFiles: 4, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Lector_IdRDR", score: 27.6, javaFiles: 4, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ReporteOFS", score: 27.6, javaFiles: 4, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Load_RGA", score: 27.2, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 7 },
+      { project: "RDR_CSVToXML", score: 26.9, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 1 },
+      { project: "ExtraccionGenericaEMISI", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_ME_Load_Warrants", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "MapeoSIS", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "CargaRatingsInternos", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ControlOnBoarding", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ControlCargaDatos", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_MapeoSSIs", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ProcesoFusion", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "CtpdaModifPlaza", score: 26.7, javaFiles: 3, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Transformar_XML", score: 26.3, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 7 },
+      { project: "ProductosBatch", score: 26.3, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 7 },
+      { project: "EmisionesValidation", score: 26.1, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 6 },
+      { project: "RDR_GenericValidatorXSD", score: 25.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 5 },
+      { project: "mentor", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "informeBroker", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ValuationForResolution", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "DatetoSSIS", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_OFS_REPORTE", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Warrants_HAB", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Extraccion_RGA", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_InformeBroker", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "nfc", score: 25.8, javaFiles: 2, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_salesWarehouse", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_SW", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ReplaceStringtoEmptyProject", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ReplaceString", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "informeMIFID", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "HistAndZip", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_DeltaEmisores", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "Morningcheck", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "rdrmaestroemisiones", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "xslx2csv", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_InformeMIFID", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ConexionBD", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDRconciliacion", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_DELTA_EMISORES", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Envio_Reportes", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "DecomisadoNRO", score: 24.9, javaFiles: 1, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ProjectMain", score: 20.7, javaFiles: 15, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 6 },
+      { project: "RDR_ReportMail", score: 16.2, javaFiles: 18, hasPom: true, testFiles: 7, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_LoadBasketsAdHoc", score: 15.9, javaFiles: 11, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "openFigi", score: 14.1, javaFiles: 9, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ExtraccionGenericaOtherEntities", score: 13.5, javaFiles: 15, hasPom: true, testFiles: 6, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "MENTOR_Difusion", score: 11.7, javaFiles: 13, hasPom: true, testFiles: 6, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "XMASToken", score: 11.1, javaFiles: 5, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 3 },
+      { project: "RDR_CargadorIssueMex", score: 10.5, javaFiles: 5, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ExtraccionGenericaUnificada", score: 10, javaFiles: 4, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 2 },
+      { project: "RDR_CargadorThirdparties", score: 9, javaFiles: 10, hasPom: true, testFiles: 5, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "rdr_bajas_comex", score: 8.7, javaFiles: 3, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_FormatoUnicoBaskets", score: 8.5, javaFiles: 1, hasPom: true, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 8 },
+      { project: "Investors_csv_PreProcess", score: 4.5, javaFiles: 5, hasPom: true, testFiles: 5, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_CargadorSubaccounts", score: 4.5, javaFiles: 5, hasPom: true, testFiles: 5, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "ProjectMain_Aux", score: 24.0, javaFiles: 0, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 },
+      { project: "RDR_Testing_Tool", score: 24.0, javaFiles: 0, hasPom: false, testFiles: 0, jaxb: 0, jpa: 0, mail: 0, ws: 0, sun: 0, sec: 0, jms: 0, xml: 0 }
+    ];
+
+    const repoJavaProjects = new Set([
+      "API_REST",
+      "AlertFXFndmngrReceive",
+      "AltaFondos_CuadreCarga",
+      "AltaFondos_Genera_csv",
+      "AltamiraMexicoConciliacion",
+      "AltasBajas_Indices",
+      "CSVToXML_Layout",
+      "CargaMentor_LA",
+      "CargaRatingsInternos",
+      "ConexionBD",
+      "ControlCargaDatos",
+      "ControlOnBoarding",
+      "CtpdaModifPlaza",
+      "DataQualityContact",
+      "DatetoSSIS",
+      "DecomisadoNRO",
+      "DeltaSSIProject",
+      "DeltaSSIs",
+      "DeltaSSIsFX",
+      "EmisionesValidation",
+      "ExtraccionGenericaCPTY",
+      "ExtraccionGenericaEMISI",
+      "ExtraccionGenericaOtherEntities",
+      "ExtraccionGenericaUnificada",
+      "HistAndZip",
+      "Investors_Client_Reg_resp",
+      "Investors_csv_PreProcess",
+      "Investors_csv_process",
+      "JSON_Altamira",
+      "LEI_Register_request",
+      "LEI_Register_response",
+      "Lector_IdRDR",
+      "LegalOpinion",
+      "LegalOpinionResponse",
+      "Legal_Opinion_Cargador",
+      "MENTOR_Difusion",
+      "MapeoSIS",
+      "Morningcheck",
+      "NormativosUtilidades",
+      "ProcesoFusion",
+      "ProductosBatch",
+      "ProjectDAO",
+      "ProjectMain",
+      "ProjectSQL",
+      "RC_Contacts",
+      "RDRCommon",
+      "RDRProcessFile",
+      "RDR_AlertasBarrido",
+      "RDR_AlertasCocinado",
+      "RDR_Borrado_Emisiones",
+      "RDR_CSVToXML",
+      "RDR_CargaCAC1",
+      "RDR_CargaCacheCAC1",
+      "RDR_CargaCacheOLAP",
+      "RDR_CargadorContactos",
+      "RDR_CargadorEntity",
+      "RDR_CargadorIssueMex",
+      "RDR_CargadorSCIs",
+      "RDR_CargadorSDIs",
+      "RDR_CargadorSubaccounts",
+      "RDR_CargadorThirdparties",
+      "RDR_ConTotal",
+      "RDR_ConciliaColombia",
+      "RDR_ConciliaContactosAbaco",
+      "RDR_ConciliaInstLiqAbaco",
+      "RDR_ConciliaInstLiqAbaco5",
+      "RDR_ConciliaSwiftAbaco",
+      "RDR_CrearIndices_Emisiones",
+      "RDR_DELTA_EMISORES",
+      "RDR_DeltaEmisores",
+      "RDR_Emisiones_PLSQL",
+      "RDR_Envio_Reportes",
+      "RDR_Extraccion_RGA",
+      "RDR_Extraction_CPARTYS",
+      "RDR_FormatoUnicoBaskets",
+      "RDR_GenericValidatorXSD",
+      "RDR_GestionCpartyC460",
+      "RDR_Historificacion_Emisiones",
+      "RDR_INFCIERRE_REPORTE",
+      "RDR_InformeBroker",
+      "RDR_InformeMIFID",
+      "RDR_LoadBasketsAdHoc",
+      "RDR_Load_RGA",
+      "RDR_ME_Load_Warrants",
+      "RDR_MapeoSSIs",
+      "RDR_MifidII",
+      "RDR_OFS_REPORTE",
+      "RDR_PLSQL",
+      "RDR_Refinitiv_Request",
+      "RDR_Report",
+      "RDR_ReportMail",
+      "RDR_SW",
+      "RDR_SectorizacionEmisores",
+      "RDR_Warrants_HAB",
+      "RDR_cuentaBajaAlta",
+      "RDR_salesWarehouse",
+      "RDRconciliacion",
+      "Refinitiv_Ratings",
+      "ReplaceString",
+      "ReplaceStringtoEmptyProject",
+      "ReporteInfCierre",
+      "ReporteOFS",
+      "ReporteSimulacionCierreOficinas",
+      "SCIs_Duplicidades",
+      "SDIs_Duplicidades",
+      "SimulacionCierreOficinas",
+      "TSEC_Generator",
+      "TraductorXML",
+      "Transformar_XML",
+      "UtilsCSV",
+      "ValuationForResolution",
+      "XMASToken",
+      "anna_download",
+      "clientelaBDI_Altas_request",
+      "clientelaBDI_Altas_response",
+      "clientelaBDI_Altas_responseSCF",
+      "concurrenteRDR",
+      "informeBroker",
+      "informeMIFID",
+      "javacsv",
+      "maestroEmisionesMergeRDR",
+      "maestroEmisionesRDR",
+      "maestroEmisionesRDR2",
+      "mentor",
+      "nfc",
+      "openFigi",
+      "rdrRules",
+      "rdr_bajas_comex",
+      "rdrmaestroemisiones",
+      "refinitivFilter",
+      "refinitivderivativesloader",
+      "sectorclassificationloader",
+      "servicesRDR",
+      "xslx2csv"
+    ]);
+
+    const localJavaData = data.filter(item => item.javaFiles > 0);
+    const dashboardData = data.filter(item => repoJavaProjects.has(item.project));
+
+    function currentDataset() {
+      return scopeFilter && scopeFilter.value === "local" ? localJavaData : dashboardData;
+    }
+
+    function currentMaxScore() {
+      return Math.max(...currentDataset().map(item => item.score));
+    }
+
+    const topBars = document.getElementById("top-bars");
+    const tableBody = document.getElementById("table-body");
+    const scopeFilter = document.getElementById("scopeFilter");
+    const search = document.getElementById("search");
+    const runtimeFilter = document.getElementById("runtimeFilter");
+    const riskFilter = document.getElementById("riskFilter");
+    const buildFilter = document.getElementById("buildFilter");
+    const sortBy = document.getElementById("sortBy");
+    const resultsCount = document.getElementById("results-count");
+    const tabButtons = document.querySelectorAll(".tab-button");
+    const tabPanels = document.querySelectorAll(".tab-panel");
+    const globalSearchForm = document.getElementById("global-search-form");
+    const globalSearchQuery = document.getElementById("global-search-query");
+    const globalSearchWord = document.getElementById("global-search-word");
+    const globalSearchRegex = document.getElementById("global-search-regex");
+    const globalSearchCase = document.getElementById("global-search-case");
+    const globalSearchSubmit = document.getElementById("global-search-submit");
+    const globalSearchCount = document.getElementById("global-search-count");
+    const globalSearchStatus = document.getElementById("global-search-status");
+    const globalSearchResults = document.getElementById("global-search-results");
+    const blockContainers = {
+      block1: document.getElementById("block1-projects"),
+      block2: document.getElementById("block2-projects"),
+      block3: document.getElementById("block3-projects"),
+      block4: document.getElementById("block4-projects")
+    };
+    const blockCounts = {
+      block1: document.getElementById("block1-count"),
+      block2: document.getElementById("block2-count"),
+      block3: document.getElementById("block3-count"),
+      block4: document.getElementById("block4-count")
+    };
+
+    const block2Projects = new Set(["rdrRules"]);
+    const block3Projects = new Set([
+      "DeltaSSIProject",
+      "DeltaSSIs",
+      "DeltaSSIsFX",
+      "refinitivFilter",
+      "refinitivderivativesloader",
+      "sectorclassificationloader",
+      "RDR_SectorizacionEmisores",
+      "anna_download",
+      "RDR_Borrado_Emisiones",
+      "RDR_Emisiones_PLSQL"
+    ]);
+    const block4Projects = new Set([
+      "ProjectDAO",
+      "ProjectSQL",
+      "ProjectMain",
+      "servicesRDR",
+      "RDR_Extraction_CPARTYS",
+      "concurrenteRDR",
+      "RDR_ConciliaColombia",
+      "RDRProcessFile",
+      "RDR_ConTotal",
+      "RDR_CargadorEntity",
+      "CargaMentor_LA",
+      "RDR_Refinitiv_Request",
+      "ProjectMain_Aux"
+    ]);
+
+    function normalizedPercent(score) {
+      return (score / currentMaxScore()) * 100;
+    }
+
+    function riskLevel(item) {
+      const percent = normalizedPercent(item.score);
+      if (percent >= 30) return "high";
+      if (percent >= 10) return "medium";
+      return "low";
+    }
+
+    function riskLabel(level) {
+      if (level === "high") return "Riesgo alto";
+      if (level === "medium") return "Riesgo medio";
+      return "Riesgo bajo";
+    }
+
+    function commentFor(item) {
+      if (item.javaFiles === 0 && !item.hasPom) return "Sin archivos Java en la copia local. Posiblemente stub o repo de configuracion.";
+      if (item.javaFiles === 0 && item.hasPom) return "Proyecto Maven sin clases Java detectadas. Verificar contenido real en GitHub.";
+      if (item.jaxb > 0) return "Dependencia JAXB fuera del JDK. Bloqueo fuerte para JDK 17.";
+      if (item.jpa > 40) return "Carga JPA alta. Revisar stack Spring/Hibernate y proveedor Oracle.";
+      if (item.jms > 0) return "Tiene JMS/integracion. Necesita validacion funcional, no solo compilacion.";
+      if (item.sun > 0) return "Usa APIs internas o no estables del JDK.";
+      if (!item.hasPom) return "No tiene build formal. Primero hay que reconstruir compilacion reproducible.";
+      if (item.testFiles === 0) return "Build formal pero con escasa red de pruebas.";
+      return "Proyecto relativamente acotado para una primera ola de migracion.";
+    }
+
+    const runtimePropertiesProjects = new Set(["AlertFXFndmngrReceive", "AltaFondos_CuadreCarga", "AltaFondos_Genera_csv", "AltamiraMexicoConciliacion", "AltasBajas_Indices", "anna_download", "CargaMentor_LA", "CargaRatingsInternos", "clientelaBDI_Altas_request", "clientelaBDI_Altas_response", "clientelaBDI_Altas_responseSCF", "ConexionBD", "ControlCargaDatos", "ControlOnBoarding", "CSVToXML_Layout", "CtpdaModifPlaza", "DataQualityContact", "DatetoSSIS", "DecomisadoNRO", "DeltaSSIs", "DeltaSSIsFX", "EmisionesValidation", "ExtraccionGenericaCPTY", "ExtraccionGenericaEMISI", "ExtraccionGenericaOtherEntities", "ExtraccionGenericaUnificada", "HistAndZip", "informeBroker", "informeMIFID", "Investors_Client_Reg_resp", "Investors_csv_PreProcess", "Investors_csv_process", "javacsv", "Lector_IdRDR", "Legal_Opinion_Cargador", "LegalOpinion", "LegalOpinionResponse", "LEI_Register_request", "LEI_Register_response", "MapeoSIS", "mentor", "MENTOR_Difusion", "nfc", "ProcesoFusion", "ProjectMain", "RC_Contacts", "RDR_AlertasBarrido", "RDR_AlertasCocinado", "rdr_bajas_comex", "RDR_Borrado_Emisiones", "RDR_CargaCacheCAC1", "RDR_CargaCacheOLAP", "RDR_CargadorContactos", "RDR_CargadorEntity", "RDR_CargadorSCIs", "RDR_CargadorSDIs", "RDR_CargadorSubaccounts", "RDR_CargadorThirdparties", "RDR_ConciliaColombia", "RDR_ConciliaContactosAbaco", "RDR_ConciliaInstLiqAbaco", "RDR_ConciliaSwiftAbaco", "RDR_ConTotal", "RDR_CrearIndices_Emisiones", "RDR_CSVToXML", "RDR_cuentaBajaAlta", "RDR_Emisiones_PLSQL", "RDR_Envio_Reportes", "RDR_Extraccion_RGA", "RDR_GenericValidatorXSD", "RDR_GestionCpartyC460", "RDR_InformeBroker", "RDR_InformeMIFID", "RDR_Load_RGA", "RDR_LoadBasketsAdHoc", "RDR_PLSQL", "RDR_Report", "RDR_ReportMail", "RDR_salesWarehouse", "RDR_SectorizacionEmisores", "refinitivderivativesloader", "ReplaceString", "ReporteInfCierre", "ReporteOFS", "ReporteSimulacionCierreOficinas", "SCIs_Duplicidades", "SDIs_Duplicidades", "SimulacionCierreOficinas", "Transformar_XML", "UtilsCSV", "ValuationForResolution", "XMASToken", "xslx2csv"]);
+    const runtimeWorkflowProjects = new Set(["AltaFondos_CuadreCarga", "AltaFondos_Genera_csv", "AltasBajas_Indices", "API_REST", "clientelaBDI_Altas_request", "clientelaBDI_Altas_response", "ConexionBD", "CSVToXML_Layout", "informeMIFID", "Investors_Client_Reg_resp", "Investors_csv_process", "JSON_Altamira", "LegalOpinion", "mentor", "MENTOR_Difusion", "nfc", "openFigi", "RDR_AlertasBarrido", "RDR_AlertasCocinado", "RDR_CargaCacheCAC1", "RDR_CargaCacheOLAP", "RDR_CargadorContactos", "RDR_CargadorIssueMex", "RDR_CargadorSDIs", "RDR_InformeMIFID", "RDR_Load_RGA", "RDR_LoadBasketsAdHoc", "RDR_MifidII", "RDR_Refinitiv_Request", "RDR_Warrants_HAB", "Refinitiv_Ratings", "refinitivderivativesloader", "refinitivFilter", "ReplaceString", "Transformar_XML", "TSEC_Generator", "XMASToken"]);
+    const runtimeScriptProjects = new Set(["ConexionBD", "ControlCargaDatos", "javacsv", "mentor", "Morningcheck", "nfc", "openFigi", "RDR_Borrado_Emisiones", "RDR_CrearIndices_Emisiones", "RDR_DeltaEmisores", "RDR_Extraction_CPARTYS", "RDR_FormatoUnicoBaskets", "RDR_GenericValidatorXSD", "RDR_Historificacion_Emisiones", "RDR_Load_RGA", "RDR_ME_Load_Warrants", "RDR_Report", "RDRCommon", "RDRProcessFile", "refinitivderivativesloader", "refinitivFilter", "sectorclassificationloader", "servicesRDR", "XMASToken"]);
+    const scriptHitsMap = [
+      { project: "ConexionBD", count: 21, scripts: ["RDR_Anna_Download_Historical.sh", "RDR_Extraccion_Generica.sh", "RDR_Transformacion_CMPS.sh", "RDR_Transformacion_DCD.sh", "RDR_Transformacion_DCT.sh", "RDR_Transformacion_DEALRECONSTRUCTION.sh", "RDR_Transformacion_EFR.sh", "RDR_Transformacion_EFR_total.sh", "RDR_Transformacion_FAED.sh", "RDR_Transformacion_FAET.sh", "RDR_Transformacion_FAMM.sh", "RDR_Transformacion_MENTOR.sh", "RDR_Transformacion_MENTOR_SinRatings.sh", "RDR_Transformacion_MGCyG.sh", "RDR_Transformacion_SALESFORCE.sh", "RDR_Transformacion_SICOR.sh", "RDR_Transformacion_SIRE.sh", "RDR_Transformacion_USA_CLIENT.sh", "RDR_Validacion_Extraccion.sh", "Refinitiv_Derivados_Batch.sh", "SAA_Local.sh"] },
+      { project: "ControlCargaDatos", count: 17, scripts: ["cache.sh", "cargaconc.sh", "createReport.sh", "Delta.sh", "executeGSProcess3.sh", "initialLoad.sh", "initialLoadAlias.sh", "initialLoadAliasItems.sh", "initialLoadCount.sh", "initialLoadCountENG.sh", "initialLoadCountGest.sh", "initialLoadItems.sh", "initialLoadPreProcess.sh", "initialLoadREL.sh", "initialLoadRelCAM.sh", "initialLoadRelREL.sh", "Load_P32.sh"] },
+      { project: "javacsv", count: 1, scripts: ["executeGSProcess3.sh"] },
+      { project: "mentor", count: 24, scripts: ["Cuenta_Emisiones.sh", "preProcessFile.sh", "RDR_DeltaEmisores.sh", "RDR_Extraccion_Generica.sh", "RDR_Mapeo_RGA.sh", "RDR_Transformacion_CMPS.sh", "RDR_Transformacion_DCD.sh", "RDR_Transformacion_DCT.sh", "RDR_Transformacion_DEALRECONSTRUCTION.sh", "RDR_Transformacion_EFR.sh", "RDR_Transformacion_EFR_total.sh", "RDR_Transformacion_FAED.sh", "RDR_Transformacion_FAET.sh", "RDR_Transformacion_FAMM.sh", "RDR_Transformacion_Fircosoft.sh", "RDR_Transformacion_MENTOR.sh", "RDR_Transformacion_MENTOR_SinRatings.sh", "RDR_Transformacion_MGCyG.sh", "RDR_Transformacion_RGA.sh", "RDR_Transformacion_SALESFORCE.sh", "RDR_Transformacion_SICOR.sh", "RDR_Transformacion_SIRE.sh", "RDR_Transformacion_USA_CLIENT.sh", "RDR_Validacion_Extraccion.sh"] },
+      { project: "Morningcheck", count: 4, scripts: ["MorningAutomat_CoherenceAndErrors.sh", "MorningAutomat_CPARTY.sh", "MorningAutomat_REPE.sh", "morningcheck.sh"] },
+      { project: "nfc", count: 1, scripts: ["gemir.sh"] },
+      { project: "openFigi", count: 1, scripts: ["Refinitiv_Derivados_Batch.sh"] },
+      { project: "RDR_Borrado_Emisiones", count: 1, scripts: ["RDR_Procesar_Emisiones.sh"] },
+      { project: "RDR_CrearIndices_Emisiones", count: 1, scripts: ["RDR_Procesar_Emisiones.sh"] },
+      { project: "RDR_DeltaEmisores", count: 1, scripts: ["RDR_DeltaEmisores.sh"] },
+      { project: "RDR_Extraction_CPARTYS", count: 18, scripts: ["RDR_Extraccion_Generica.sh", "RDR_Transformacion_CMPS.sh", "RDR_Transformacion_DCD.sh", "RDR_Transformacion_DCT.sh", "RDR_Transformacion_DEALRECONSTRUCTION.sh", "RDR_Transformacion_EFR.sh", "RDR_Transformacion_EFR_total.sh", "RDR_Transformacion_FAED.sh", "RDR_Transformacion_FAET.sh", "RDR_Transformacion_FAMM.sh", "RDR_Transformacion_MENTOR.sh", "RDR_Transformacion_MENTOR_SinRatings.sh", "RDR_Transformacion_MGCyG.sh", "RDR_Transformacion_SALESFORCE.sh", "RDR_Transformacion_SICOR.sh", "RDR_Transformacion_SIRE.sh", "RDR_Transformacion_USA_CLIENT.sh", "RDR_Validacion_Extraccion.sh"] },
+      { project: "RDR_FormatoUnicoBaskets", count: 1, scripts: ["RDR_CargaBasketSponsor.sh"] },
+      { project: "RDR_GenericValidatorXSD", count: 1, scripts: ["GenericValidator.sh"] },
+      { project: "RDR_Historificacion_Emisiones", count: 1, scripts: ["RDR_Procesar_Emisiones.sh"] },
+      { project: "RDR_Load_RGA", count: 4, scripts: ["MorningAutomat.sh", "RDR_Load_RGA.sh", "RDR_Mapeo_RGA.sh", "RDR_Transformacion_RGA.sh"] },
+      { project: "RDR_ME_Load_Warrants", count: 1, scripts: ["Load_Issues_Warrants_Java.sh"] },
+      { project: "RDR_Report", count: 1, scripts: ["createReport.sh"] },
+      { project: "RDRCommon", count: 32, scripts: ["Delta.sh", "executeGSProcess3.sh", "initialLoadPreProcess.sh", "load.sh", "loadAgreements.sh", "loadSettlements.sh", "preProcessFile.sh", "RDR_DeltaEmisores.sh", "RDR_Extraccion_Generica.sh", "RDR_Mapeo_RGA.sh", "RDR_Transformacion_CMPS.sh", "RDR_Transformacion_DCD.sh", "RDR_Transformacion_DCT.sh", "RDR_Transformacion_DEALRECONSTRUCTION.sh", "RDR_Transformacion_EFR.sh", "RDR_Transformacion_EFR_total.sh", "RDR_Transformacion_FAED.sh", "RDR_Transformacion_FAET.sh", "RDR_Transformacion_FAMM.sh", "RDR_Transformacion_Fircosoft.sh", "RDR_Transformacion_MENTOR.sh", "RDR_Transformacion_MENTOR_SinRatings.sh", "RDR_Transformacion_MGCyG.sh", "RDR_Transformacion_PRODUCTOS.sh", "RDR_Transformacion_RGA.sh", "RDR_Transformacion_SAIT.sh", "RDR_Transformacion_SALESFORCE.sh", "RDR_Transformacion_SICOR.sh", "RDR_Transformacion_SIRE.sh", "RDR_Transformacion_USA_CLIENT.sh", "RDR_Validacion_Extraccion.sh", "report.sh"] },
+      { project: "RDRProcessFile", count: 20, scripts: ["Bloomberg_Process_Pending.sh", "Bloomberg_Response.sh", "initialLoad.sh", "initialLoadAlias.sh", "initialLoadAliasItems.sh", "initialLoadCount.sh", "initialLoadCountENG.sh", "initialLoadCountGest.sh", "initialLoadItems.sh", "initialLoadREL.sh", "initialLoadRelCAM.sh", "initialLoadRelREL.sh", "load.sh", "Load_Issues_Warrants.sh", "load_issuRV.sh", "loadAgreements.sh", "loadSAIT.sh", "loadSettlements.sh", "preProcessFile.sh", "report.sh"] },
+      { project: "refinitivderivativesloader", count: 1, scripts: ["Refinitiv_Derivados_Batch.sh"] },
+      { project: "refinitivFilter", count: 1, scripts: ["Refinitiv_Derivados_Batch.sh"] },
+      { project: "sectorclassificationloader", count: 1, scripts: ["SAA_Local.sh"] },
+      { project: "servicesRDR", count: 3, scripts: ["monitor_services.sh", "MorningAutomat.sh", "services.sh"] },
+      { project: "XMASToken", count: 2, scripts: ["RDR_Anna_Download_Historical.sh", "Refinitiv_Derivados_Batch.sh"] }
+    ];
+
+    function runtimeCoverageFor(project) {
+      const inProperties = runtimePropertiesProjects.has(project);
+      const inWorkflow = runtimeWorkflowProjects.has(project);
+      const inScripts = runtimeScriptProjects.has(project);
+      const operationalUse = operationalKnownUsage[project];
+      const badges = [];
+      if (inProperties) badges.push(`<span class="badge risk-low">Properties</span>`);
+      if (inWorkflow) badges.push(`<span class="badge risk-low">Workflows/Eventos</span>`);
+      if (inScripts) badges.push(`<span class="badge risk-low">Scripts</span>`);
+      if (badges.length) return badges.join(" ");
+      if (operationalUse) return `<span class="badge risk-low">Uso conocido</span>`;
+      return `<span class="badge risk-medium">No aparece</span>`;
+    }
+
+    function runtimeCoverageStatus(project) {
+      const inProperties = runtimePropertiesProjects.has(project);
+      const inWorkflow = runtimeWorkflowProjects.has(project);
+      const inScripts = runtimeScriptProjects.has(project);
+      if (inProperties || inWorkflow || inScripts) return "found";
+      if (operationalKnownUsage[project]) return "known";
+      return "missing";
+    }
+
+    function blockFor(item) {
+      if (block2Projects.has(item.project)) return "block2";
+      if (block3Projects.has(item.project)) return "block3";
+      if (block4Projects.has(item.project)) return "block4";
+
+      if (item.jms > 0 || item.sun > 0 || item.score >= 50) return "block4";
+      if (item.jaxb > 0 || item.jpa > 0 || item.sec > 0) return "block3";
+      return "block1";
+    }
+
+    function renderPlanBlocks() {
+      const grouped = {
+        block1: [],
+        block2: [],
+        block3: [],
+        block4: []
+      };
+
+      dashboardData.forEach(item => {
+        grouped[blockFor(item)].push(item.project);
+      });
+
+      Object.keys(grouped).forEach(key => {
+        const projects = grouped[key].sort((a, b) => a.localeCompare(b));
+        blockCounts[key].textContent = `(${projects.length})`;
+        blockContainers[key].innerHTML = projects.map(project =>
+          `<span class="project-chip project-chip--dense">${project}</span>`
+        ).join("");
+      });
+    }
+
+    function renderTopBars() {
+      const top = [...currentDataset()].sort((a, b) => b.score - a.score).slice(0, 10);
+      topBars.innerHTML = top.map(item => {
+        const percent = normalizedPercent(item.score);
+        return `
+          <div class="bar-row">
+            <div class="bar-label" title="${item.project}">${item.project}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${percent.toFixed(1)}%"></div></div>
+            <div class="bar-value">${percent.toFixed(1)}%</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function applyFilters() {
+      const text = search.value.trim().toLowerCase();
+      const runtime = runtimeFilter.value;
+      const risk = riskFilter.value;
+      const build = buildFilter.value;
+      const sort = sortBy.value;
+
+      let rows = currentDataset().filter(item => {
+        const matchesText = item.project.toLowerCase().includes(text);
+        const status = runtimeCoverageStatus(item.project);
+        const matchesRuntime = runtime === "all" || runtime === status || (runtime === "found" && status === "known");
+        const matchesRisk = risk === "all" || riskLevel(item) === risk;
+        const matchesBuild = build === "all" || (build === "maven" ? item.hasPom : !item.hasPom);
+        return matchesText && matchesRuntime && matchesRisk && matchesBuild;
+      });
+
+      rows.sort((a, b) => {
+        if (sort === "score-desc") return b.score - a.score;
+        if (sort === "score-asc") return a.score - b.score;
+        if (sort === "name-asc") return a.project.localeCompare(b.project);
+        if (sort === "java-desc") return b.javaFiles - a.javaFiles;
+        if (sort === "tests-desc") return b.testFiles - a.testFiles;
+        return 0;
+      });
+
+      resultsCount.textContent = `${rows.length} proyectos`;
+
+      tableBody.innerHTML = rows.map(item => {
+        const percent = normalizedPercent(item.score);
+        const level = riskLevel(item);
+        const label = riskLabel(level);
+        return `
+          <tr>
+            <td><strong>${item.project}</strong></td>
+            <td>${runtimeCoverageFor(item.project)}</td>
+            <td><span class="badge risk-${level}">${label}</span></td>
+            <td class="num">${percent.toFixed(1)}%</td>
+            <td class="num">${item.score.toFixed(1)}</td>
+            <td class="num">${item.javaFiles}</td>
+            <td>${item.hasPom ? "Con pom.xml" : "Sin pom.xml"}</td>
+            <td class="num">${item.testFiles}</td>
+            <td class="num">${item.jaxb}</td>
+            <td class="num">${item.jpa}</td>
+            <td class="num">${item.mail}</td>
+            <td class="num">${item.ws}</td>
+            <td class="num">${item.sun}</td>
+            <td class="num">${item.sec}</td>
+            <td class="num">${item.jms}</td>
+            <td class="num">${item.xml}</td>
+            <td>${commentFor(item)}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function refreshOverview() {
+      renderTopBars();
+      applyFilters();
+    }
+
+    [search, runtimeFilter, riskFilter, buildFilter, sortBy].forEach(el => el.addEventListener("input", applyFilters));
+    [runtimeFilter, riskFilter, buildFilter, sortBy].forEach(el => el.addEventListener("change", applyFilters));
+    scopeFilter.addEventListener("change", refreshOverview);
+
+    tabButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.tab;
+        tabButtons.forEach(item => item.classList.toggle("active", item === button));
+        tabPanels.forEach(panel => panel.classList.toggle("active", panel.id === `tab-${target}`));
+      });
+    });
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function includesSearchTerm(value, term) {
+      return String(value || "").toLowerCase().includes(term);
+    }
+
+    function buildOperationalSearchRows(term) {
+      const rows = [];
+
+      propertiesMap.forEach(item => {
+        const searchable = [item.project, item.jar, ...item.props].join(" ");
+        if (includesSearchTerm(searchable, term)) {
+          rows.push({
+            source: "Properties",
+            reference: item.props.join(", "),
+            target: `${item.project} (${item.jar})`,
+            detail: `${item.callers} properties que invocan este JAR`
+          });
+        }
+      });
+
+      scriptHitsMap.forEach(item => {
+        const searchable = [item.project, ...item.scripts].join(" ");
+        if (includesSearchTerm(searchable, term)) {
+          rows.push({
+            source: "Scripts",
+            reference: item.scripts.join(", "),
+            target: item.project,
+            detail: `${item.count} scripts detectados`
+          });
+        }
+      });
+
+      workflowJavaCandidates.forEach(item => {
+        const target = workflowJavaTargets[item.workflow] || {};
+        const searchable = [item.workflow, item.zone, item.file, target.java, target.libs, target.evidence].join(" ");
+        if (includesSearchTerm(searchable, term)) {
+          rows.push({
+            source: "Workflow",
+            reference: item.workflow,
+            target: target.java || "Java no resuelto",
+            detail: `${item.zone} | ${target.evidence || "Pendiente de comando runtime"}`
+          });
+        }
+      });
+
+      workflowTriggerEvents.forEach(item => {
+        const target = workflowJavaTargets[item.workflow] || {};
+        const searchable = [item.event, item.type, item.workflow, target.java].join(" ");
+        if (includesSearchTerm(searchable, term)) {
+          rows.push({
+            source: "Evento",
+            reference: `${item.event} (${item.type})`,
+            target: target.java || item.workflow,
+            detail: `Dispara el workflow ${item.workflow}`
+          });
+        }
+      });
+
+      return rows;
+    }
+
+    async function runGlobalSearch(event) {
+      event.preventDefault();
+      const query = globalSearchQuery.value.trim();
+      if (!query) return;
+
+      const params = new URLSearchParams({
+        q: query,
+        wholeWord: String(globalSearchWord.checked),
+        regex: String(globalSearchRegex.checked),
+        caseSensitive: String(globalSearchCase.checked)
+      });
+
+      globalSearchSubmit.disabled = true;
+      globalSearchCount.textContent = "Buscando...";
+      globalSearchStatus.textContent = "Analizando archivos del workspace...";
+      globalSearchResults.innerHTML = '<tr><td colspan="4" class="empty-state">Buscando referencias...</td></tr>';
+
+      try {
+        const apiBase = window.location.protocol === "file:"
+          ? "http://localhost:8787"
+          : window.location.origin;
+        const response = await fetch(`${apiBase}/api/search?${params}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "No se pudo completar la busqueda.");
+
+        const evidence = Array.isArray(payload.results) ? payload.results : [];
+        const rows = buildOperationalSearchRows(query.toLowerCase());
+        const operationalRows = rows.map(row => `
+          <tr>
+            <td><span class="badge risk-low">${escapeHtml(row.source)}</span></td>
+            <td>${escapeHtml(row.reference)}</td>
+            <td><strong>${escapeHtml(row.target)}</strong></td>
+            <td>${escapeHtml(row.detail)}</td>
+          </tr>
+        `);
+        const evidenceRows = evidence.map(result => `
+          <tr>
+            <td><span class="badge risk-medium">Evidencia adicional</span></td>
+            <td><code>${escapeHtml(result.File)}:${escapeHtml(result.Line)}</code></td>
+            <td>${escapeHtml(result.Category)}</td>
+            <td><code>${escapeHtml(result.Context || result.Match)}</code></td>
+          </tr>
+        `);
+
+        globalSearchCount.textContent = `${rows.length} relaciones`;
+        globalSearchStatus.textContent = rows.length
+          ? `Relaciones operativas de "${query}" encontradas en Properties, Scripts, Workflows y Eventos.${evidence.length ? ` Ademas hay ${evidence.length} coincidencias de archivo.` : ""}`
+          : `No hay relaciones operativas para "${query}". Se muestran coincidencias de archivo si existen.`;
+        globalSearchResults.innerHTML = operationalRows.length || evidenceRows.length
+          ? [...operationalRows, ...evidenceRows].join("")
+          : '<tr><td colspan="4" class="empty-state">Sin relaciones operativas ni referencias de archivo para esta busqueda.</td></tr>';
+      } catch (error) {
+        globalSearchCount.textContent = "No disponible";
+        globalSearchStatus.textContent = `Error: ${error.message}. Abre el dashboard desde http://localhost:8787/ usando start_global_search_dashboard.ps1.`;
+        globalSearchResults.innerHTML = '<tr><td colspan="4" class="empty-state">No fue posible consultar el buscador local.</td></tr>';
+      } finally {
+        globalSearchSubmit.disabled = false;
+      }
+    }
+
+    globalSearchForm.addEventListener("submit", runGlobalSearch);
+
+    // ─── PROPERTIES DATA ───────────────────────────────────────────────────
+    const propertiesMap = [
+      { project: "AlertFXFndmngrReceive", jar: "AlertFXFndmngrReceive.jar", props: ["AlertFXFndmngrReceive.properties"], callers: 1 },
+      { project: "AltaFondos_CuadreCarga", jar: "AltaFondos_CuadreCarga.jar", props: ["RDR_AltaFondos.properties"], callers: 1 },
+      { project: "AltaFondos_Genera_csv", jar: "AltaFondos_Genera_csv.jar", props: ["RDR_AltaFondos.properties"], callers: 1 },
+      { project: "AltamiraMexicoConciliacion", jar: "AltamiraMexicoConciliacion.jar", props: ["AltamiraMexicoConciliacion.properties","AltamiraMexicoSend.properties"], callers: 2 },
+      { project: "AltasBajas_Indices", jar: "AltasBajas_Indices.jar", props: ["Indices_Carga.properties"], callers: 1 },
+      { project: "CargaMentor_LA", jar: "CargaMentor_LA.jar", props: ["CargaMENTOR_LA.properties","MitigantsBBVA.properties"], callers: 2 },
+      { project: "CargaRatingsInternos", jar: "CargaRatingsInternos.jar", props: ["CargaRatingsInternos.properties"], callers: 1 },
+      { project: "clientelaBDI_Altas_request", jar: "clientelaBDI_Altas_request.jar", props: ["clientelaBDI_Altas_request.properties"], callers: 1 },
+      { project: "clientelaBDI_Altas_response", jar: "clientelaBDI_Altas_response.jar", props: ["clientelaBDI_Altas_response.properties"], callers: 1 },
+      { project: "clientelaBDI_Altas_responseSCF", jar: "clientelaBDI_Altas_responseSCF.jar", props: ["clientelaBDI_Altas_responseSCF.properties","clientelaBDI_Altas_responseSCFF.properties"], callers: 2 },
+      { project: "ConexionBD", jar: "ConexionBD.jar", props: ["(libreria base compartida en +50 properties)"], callers: 50 },
+      { project: "ControlCargaDatos", jar: "ControlCargaDatos.jar", props: ["cargafechasGTR.properties","cargafechasMGC.properties","cargafechasSTAR.properties","cedro.properties","clientes.properties","ConClientela.properties","Contrato460.properties","nlegales.properties","OFAC.properties","oficinas.properties","Refundicion.properties","Reubicacion.properties","TradPlazas.properties"], callers: 13 },
+      { project: "ControlOnBoarding", jar: "ControlOnBoarding.jar", props: ["ControlOnBoarding.properties"], callers: 1 },
+      { project: "CSVToXML_Layout", jar: "CSVToXML_Layout.jar", props: ["CSVToXML_Layout.properties","CSVToXML_G_Layout.properties","RDR_AltaFondos.properties","RDR_CargadorSCFF_Carga.properties"], callers: 4 },
+      { project: "CtpdaModifPlaza", jar: "CtpdaModifPlaza.jar", props: ["plazas.properties"], callers: 1 },
+      { project: "DataQualityContact", jar: "DataQualityContact.jar", props: ["DQ_Contacts.properties"], callers: 1 },
+      { project: "DatetoSSIS", jar: "DatetoSSIS.jar", props: ["UPD_DATETO.properties"], callers: 1 },
+      { project: "DecomisadoNRO", jar: "DecomisadoNRO.jar", props: ["cargafechasGTR.properties"], callers: 1 },
+      { project: "DeltaSSIs", jar: "DeltaSSIs.jar", props: ["SSIsAlert.properties"], callers: 1 },
+      { project: "DeltaSSIsFX", jar: "DeltaSSIsFx.jar", props: ["SSIsAlertFx.properties"], callers: 1 },
+      { project: "EmisionesValidation", jar: "EmisionesValidation.jar", props: ["ValidatorEmisiones.properties"], callers: 1 },
+      { project: "ExtraccionGenericaCPTY", jar: "ExtraccionGenericaCPTY.jar", props: ["ExtraccionGenericaCPTY.properties"], callers: 1 },
+      { project: "ExtraccionGenericaEMISI", jar: "ExtraccionGenericaEMISI.jar", props: ["ExtraccionGenericaEMISI_ALL.properties","ExtraccionGenericaEMISI_RESTO.properties"], callers: 2 },
+      { project: "ExtraccionGenericaOtherEntities", jar: "ExtraccionGenericaOtherEntities.jar", props: ["ExtraccionGenericaBASKETS.properties","ExtraccionGenericaCONT.properties","ExtraccionGenericaCONTR.properties","ExtraccionGenericaCONTRBBVA.properties","ExtraccionGenericaDOMI.properties","ExtraccionGenericaDUCOCPTY.properties","ExtraccionGenericaSCIs.properties","ExtraccionGenericaSSIs.properties","ExtraccionGenericaTHIRDPARTIES.properties"], callers: 9 },
+      { project: "ExtraccionGenericaUnificada", jar: "ExtraccionGenericaUnificada.jar", props: ["ExtraccionDUCOMASTERDATA.properties"], callers: 1 },
+      { project: "HistAndZip", jar: "HistAndZip.jar", props: ["SSIsAlert.properties","SSIsAlertFx.properties"], callers: 2 },
+      { project: "Investors_Client_Reg_resp", jar: "Investors_Client_Reg_resp.jar", props: ["Investors_Client_Reg_resp.properties"], callers: 1 },
+      { project: "Investors_csv_process", jar: "Investors_csv_process.jar", props: ["Investors_csv_recep.properties"], callers: 1 },
+      { project: "javacsv", jar: "javacsv.jar", props: ["cargafechasGTR.properties","cargafechasMGC.properties","cargafechasSTAR.properties","cedro.properties","clientes.properties","ConClientela.properties","Contrato460.properties","nlegales.properties","OFAC.properties","oficinas.properties","Refundicion.properties","Reubicacion.properties","TradPlazas.properties"], callers: 13 },
+      { project: "Lector_IdRDR", jar: "Lector_IdRDR.jar", props: ["Mentor_IDsRDR.properties"], callers: 1 },
+      { project: "Legal_Opinion_Cargador", jar: "Legal_Opinion_Cargador.jar", props: ["Legal_Opinion_Cargador.properties"], callers: 1 },
+      { project: "LegalOpinionResponse", jar: "LegalOpinionResponse.jar", props: ["LegalOpinionResponse.properties"], callers: 1 },
+      { project: "LEI_Register_request", jar: "LEI_Register_request.jar", props: ["LEI_Register_request.properties"], callers: 1 },
+      { project: "LEI_Register_response", jar: "LEI_Register_response.jar", props: ["LEI_Register_response.properties"], callers: 1 },
+      { project: "MapeoSIS", jar: "MapeoSIS.jar", props: ["SSIS_TRADACC.properties","SSIS_TRADCED.properties","SSIS_TRADCLE.properties","SSIS_TRADCOR.properties","SSIS_TRADCSACC.properties","SSIS_TRADCSCLE.properties","SSIS_TRADCSCOR.properties","SSIS_TRADDIARIA.properties","SSIS_TRADEUR.properties","SSIS_TRADSWIFT.properties"], callers: 10 },
+      { project: "mentor", jar: "mentor.jar", props: ["mitigantsBANCOMER.properties"], callers: 1 },
+      { project: "MENTOR_Difusion", jar: "MENTOR_Difusion.jar", props: ["MENTOR_Difusion.properties"], callers: 1 },
+      { project: "nfc", jar: "nfc.jar", props: ["NFC.properties","NFC_NEW.properties"], callers: 2 },
+      { project: "ProcesoFusion", jar: "ProcesoFusion.jar", props: ["ProcesoDeFusion.properties"], callers: 1 },
+      { project: "ProjectMain", jar: "ProjectMain.jar", props: ["planifGenerico.properties","salesWarehouse_RDR.properties"], callers: 2 },
+      { project: "RC_Contacts", jar: "RC_Contacts.jar", props: ["RC_Contacts.properties"], callers: 1 },
+      { project: "RDR_AlertasBarrido", jar: "RDR_AlertasBarrido.jar", props: ["CalypsoFiltersKLYO.properties","CalypsoFiltersKRFN.properties","GestionAlertas.properties","GestionAlertas_AltaBajaIndicesTraducciones.properties","RDR_CargadorContactos.properties","RDR_CargadorSCFF_Altas_Publish.properties","RDR_CargadorSCFF_Bajas.properties","RDR_CargadorSCFF_Bajas_Publish.properties","RDR_CargadorSCFF_PostCarga.properties","RDR_CargadorSCIS.properties","RDR_CargadorSCIsPublish.properties","RDR_CargadorSCISMEX_Publish.properties","RDR_CargadorContactos_Publish.properties"], callers: 13 },
+      { project: "RDR_AlertasCocinado", jar: "RDR_AlertasCocinado.jar", props: ["AltamiraMexicoConciliacion.properties","CalypsoFiltersKLYO.properties","CalypsoFiltersKRFN.properties","CargaRatingsInternos.properties","ExtraccionAltamiraReceive.properties","GestionAlertas.properties","RDR_AuditMex.properties","RDR_AuditSSI.properties","RDR_CargadorContactos.properties","RDR_CargadorSCFF_Bajas.properties","RDR_CargadorSCFF_PostCarga.properties","RDR_CargadorSCIS.properties","SectorAssetAllocation_Report.properties"], callers: 13 },
+      { project: "rdr_bajas_comex", jar: "rdr_bajas_comex.jar", props: ["RDR_BajasComex.properties"], callers: 1 },
+      { project: "RDR_Borrado_Emisiones", jar: "RDR_Borrado_Emisiones.jar", props: ["RDR_Borrado_Emisiones.properties"], callers: 1 },
+      { project: "RDR_CargaCacheCAC1", jar: "RDR_CargaCacheCAC1.jar", props: ["CargaCacheCAC1.properties"], callers: 1 },
+      { project: "RDR_CargaCacheOLAP", jar: "RDR_CargaCacheOLAP.jar", props: ["CargaCacheOLAP.properties"], callers: 1 },
+      { project: "RDR_CargadorContactos", jar: "RDR_CargadorContactos.jar", props: ["RDR_CargadorContactos.properties"], callers: 1 },
+      { project: "RDR_CargadorEntity", jar: "RDR_CargadorEntity.jar", props: ["RDR_CargadorSCFF_Altas.properties","RDR_CargadorSCFF_Bajas.properties","RDR_CargadorSCFF_Carga.properties","RDR_CargadorSCFF_Control.properties","RDR_CargadorSCFF_PostCarga.properties"], callers: 5 },
+      { project: "RDR_CargadorSCIs", jar: "RDR_CargadorSCIs.jar", props: ["RDR_CargadorSCIS.properties","RDR_CargadorSCISMEX.properties","SCIs_SemaforoMEX.properties"], callers: 3 },
+      { project: "RDR_CargadorSDIs", jar: "RDR_CargadorSDIs.jar", props: ["SSIs_SemaforoMEX.properties"], callers: 1 },
+      { project: "RDR_CargadorThirdparties", jar: "RDR_CargadorThirdparties.jar", props: ["RDR_CargadorThirdparties.properties"], callers: 1 },
+      { project: "RDR_ConciliaColombia", jar: "RDR_ConciliaColombia.jar", props: ["ExtraccionAltamiraReceive.properties","ExtraccionAltamiraSend.properties"], callers: 2 },
+      { project: "RDR_ConciliaContactosAbaco", jar: "RDR_ConciliaContactosAbaco.jar", props: ["Conci_Contacts_RDR_ABACO.properties"], callers: 1 },
+      { project: "RDR_ConciliaInstLiqAbaco", jar: "RDR_ConciliaInstLiqAbaco.jar", props: ["Conci_Settlements_RDR_ABACO.properties"], callers: 1 },
+      { project: "RDR_ConciliaSwiftAbaco", jar: "RDR_ConciliaSwiftAbaco.jar", props: ["Conci_Swift_RDR_ABACO.properties"], callers: 1 },
+      { project: "RDR_ConTotal", jar: "RDR_ConTotal.jar", props: ["ConTotal_Alias.properties","ConTotal_Baremos.properties","ConTotal_Captura.properties","ConTotal_Ctpda.properties","ConTotal_Items.properties","ConTotal_Otherfronts.properties","ConTotal_Relaciones.properties"], callers: 7 },
+      { project: "RDR_CrearIndices_Emisiones", jar: "RDR_CrearIndices_Emisiones.jar", props: ["RDR_BorrarIndices_Emisiones.properties","RDR_CrearIndices_Emisiones.properties"], callers: 2 },
+      { project: "RDR_CSVToXML", jar: "RDR_CSVToXML.jar", props: ["DatosEconomicos.properties"], callers: 1 },
+      { project: "RDR_cuentaBajaAlta", jar: "RDR_cuentaBajaAlta.jar", props: ["Reubicacion_SSIS.properties","Reubicacion_SSIS_FILTER.properties"], callers: 2 },
+      { project: "RDR_Emisiones_PLSQL", jar: "RDR_Emisiones_PLSQL.jar", props: ["RDR_Emisiones_PLSQL_ELI.properties","RDR_Emisiones_PLSQL_INAC.properties","RDR_Emisiones_PLSQL_INCR.properties"], callers: 3 },
+      { project: "RDR_Extraccion_RGA", jar: "RDR_Extraccion_RGA.jar", props: ["RDR_Extraccion_RGA.properties"], callers: 1 },
+      { project: "RDR_GenericValidatorXSD", jar: "RDR_GenericValidatorXSD.jar", props: ["ValidationBANCOMERContracts.properties","ValidationBaskets.properties","ValidationBBVAContracts.properties","ValidationContacts.properties"], callers: 4 },
+      { project: "RDR_GestionCpartyC460", jar: "RDR_GestionCpartyC460.jar", props: ["Contrato460.properties"], callers: 1 },
+      { project: "RDR_PLSQL", jar: "RDR_PLSQL.jar", props: ["ConClientela.properties","Contrato460.properties"], callers: 2 },
+      { project: "RDR_ReportMail", jar: "RDR_ReportMail.jar", props: ["Plantilla_ReportMail.properties"], callers: 1 },
+      { project: "RDR_salesWarehouse", jar: "RDR_salesWarehouse.jar", props: ["salesWarehouse.properties","salesWarehouse_on.properties"], callers: 2 },
+      { project: "RDR_SectorizacionEmisores", jar: "RDR_SectorizacionEmisores.jar", props: ["CargaSectorizacionT1.properties","CargaSectorizacionT2.properties","CargaSectorizacionT3.properties","T2_RelValuesTaxonomy.properties"], callers: 4 },
+      { project: "ReplaceString", jar: "ReplaceString.jar", props: ["SSIsAlert.properties","SSIsAlertFx.properties"], callers: 2 },
+      { project: "ReporteOFS", jar: "ReporteOFS.jar", props: ["ReporteOFS.properties"], callers: 1 },
+      { project: "ReporteSimulacionCierreOficinas", jar: "ReporteSimulacionCierreOficinas.jar", props: ["ReporteSimulacionCierreOficinas.properties"], callers: 1 },
+      { project: "SCIs_Duplicidades", jar: "SCIs_Duplicidades.jar", props: ["SCIsDuplicidades.properties"], callers: 1 },
+      { project: "SDIs_Duplicidades", jar: "SDIs_Duplicidades.jar", props: ["SDIsDuplicidades.properties"], callers: 1 },
+      { project: "SimulacionCierreOficinas", jar: "SimulacionCierreOficinas.jar", props: ["SimulacionCierreOficinas.properties"], callers: 1 },
+      { project: "Transformar_XML", jar: "Transformar_XML.jar", props: ["TransforBaskets.properties","TransforEmisiones.properties"], callers: 2 },
+      { project: "UtilsCSV", jar: "UtilsCSV.jar", props: ["ISDA12.properties","ISDA13.properties","PortRec.properties"], callers: 3 },
+      { project: "ValuationForResolution", jar: "ValuationForResolution.jar", props: ["ValuationForResolution.properties"], callers: 1 },
+      { project: "XMASToken", jar: "XMASToken-0.0.1.jar", props: ["ExtraccionAltamiraReceive.properties","ValuationForResolution.properties"], callers: 2 },
+      { project: "xslx2csv", jar: "xslx2csv.jar", props: ["CBR.properties","DatosEconomicos.properties","EMIR.properties"], callers: 3 }
+    ];
+
+    const noPropertiesProjects = [
+      { project: "API_REST", note: "Servicio REST, no batch" },
+      { project: "concurrenteRDR", note: "Probablemente invocado internamente desde otro JAR" },
+      { project: "DeltaSSIProject", note: "Codigo fuente alternativo/duplicado de DeltaSSIs" },
+      { project: "informeBroker", note: "Posiblemente reemplazado por RDR_Report.jar" },
+      { project: "informeMIFID", note: "Posiblemente reemplazado por RDR_Report.jar" },
+      { project: "JSON_Altamira", note: "Sin properties detectado, revisar si hay workflow" },
+      { project: "maestroEmisionesRDR", note: "Posible version antigua o duplicado" },
+      { project: "maestroEmisionesRDR2", note: "Posible version antigua o duplicado" },
+      { project: "maestroEmisionesMergeRDR", note: "Posible version antigua o duplicado" },
+      { project: "rdrmaestroemisiones", note: "Posible version antigua o duplicado" },
+      { project: "Morningcheck", note: "Herramienta manual o desusada" },
+      { project: "NormativosUtilidades", note: "Probablemente reemplazado por UtilsCSV o ControlCargaDatos" },
+      { project: "openFigi", note: "Sin properties, revisar si es batch externo" },
+      { project: "ProductosBatch", note: "Sin properties, posible invocacion por script" },
+      { project: "ProjectDAO", note: "Dependencia interna, no JAR lanzable" },
+      { project: "ProjectSQL", note: "Dependencia interna, no JAR lanzable" },
+      { project: "RDR_FormatoUnicoBaskets", note: "Tiene RDR_FormatoUnicoBaskets_config.properties pero sin NomPaquete" },
+      { project: "RDR_Historificacion_Emisiones", note: "Candidato a revisar o retirar" },
+      { project: "RDR_INFCIERRE_REPORTE", note: "Candidato a revisar o retirar" },
+      { project: "RDR_InformeBroker", note: "Sin properties" },
+      { project: "RDR_InformeMIFID", note: "Sin properties" },
+      { project: "RDR_LoadBasketsAdHoc", note: "Ad hoc, probablemente ejecucion manual" },
+      { project: "RDR_MapeoSSIs", note: "Sin properties, posible uso en workflows" },
+      { project: "RDR_ME_Load_Warrants", note: "Sin properties encontrado" },
+      { project: "RDR_MifidII", note: "Sin properties, verificar workflows" },
+      { project: "RDR_OFS_REPORTE", note: "Sin referencias" },
+      { project: "RDR_Refinitiv_Request", note: "Sin properties, posible script" },
+      { project: "RDR_SW", note: "Sin referencias" },
+      { project: "RDR_Testing_Tool", note: "Herramienta de test, no produccion" },
+      { project: "RDR_Warrants_HAB", note: "Sin properties" },
+      { project: "refinitivderivativesloader", note: "Tiene log4j dedicado, probablemente llamado por script" },
+      { project: "refinitivFilter", note: "Tiene log4j dedicado, probablemente llamado por script" },
+      { project: "sectorclassificationloader", note: "Tiene log4j dedicado, probablemente llamado por script" },
+      { project: "servicesRDR", note: "Servicio JMS persistente, arranca de otra forma" },
+      { project: "TSEC_Generator", note: "Sin properties" },
+      { project: "TraductorXML", note: "Aparece como TaductorXML.jar en initialSQL_LEI.properties (typo)" }
+    ];
+
+    const propertiesUniqueJarDistribution = [
+      { uniqueJars: 0, propertiesCount: 287 },
+      { uniqueJars: 1, propertiesCount: 59 },
+      { uniqueJars: 2, propertiesCount: 73 },
+      { uniqueJars: 3, propertiesCount: 21 },
+      { uniqueJars: 4, propertiesCount: 9 },
+      { uniqueJars: 5, propertiesCount: 1 }
+    ];
+
+    const propertiesWithTwoOrMoreUniqueJars = [
+      { properties: "ConTotal_Alias.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "ConTotal_Baremos.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "ConTotal_Captura.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "ConTotal_Ctpda.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "ConTotal_Items.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "ConTotal_Otherfronts.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "ConTotal_Relaciones.properties", uniqueJars: 2, jars: ["RDR_ConTotal.jar", "ConexionBD.jar"] },
+      { properties: "cargafechasGTR.properties", uniqueJars: 3, jars: ["ControlCargaDatos.jar", "javacsv.jar", "DecomisadoNRO.jar"] },
+      { properties: "cargafechasMGC.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "cargafechasSTAR.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "cedro.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "clientes.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "ConClientela.properties", uniqueJars: 3, jars: ["ControlCargaDatos.jar", "javacsv.jar", "RDR_PLSQL.jar"] },
+      { properties: "Contrato460.properties", uniqueJars: 4, jars: ["ControlCargaDatos.jar", "javacsv.jar", "RDR_GestionCpartyC460.jar", "RDR_PLSQL.jar"] },
+      { properties: "nlegales.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "OFAC.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "oficinas.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "Refundicion.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "Reubicacion.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "TradPlazas.properties", uniqueJars: 2, jars: ["ControlCargaDatos.jar", "javacsv.jar"] },
+      { properties: "RDR_AltaFondos.properties", uniqueJars: 3, jars: ["AltaFondos_CuadreCarga.jar", "AltaFondos_Genera_csv.jar", "CSVToXML_Layout.jar"] },
+      { properties: "RDR_CargadorSCFF_Bajas.properties", uniqueJars: 3, jars: ["RDR_AlertasBarrido.jar", "RDR_AlertasCocinado.jar", "RDR_CargadorEntity.jar"] },
+      { properties: "RDR_CargadorSCFF_PostCarga.properties", uniqueJars: 3, jars: ["RDR_AlertasBarrido.jar", "RDR_AlertasCocinado.jar", "RDR_CargadorEntity.jar"] },
+      { properties: "RDR_CargadorContactos.properties", uniqueJars: 2, jars: ["RDR_AlertasBarrido.jar", "RDR_AlertasCocinado.jar"] },
+      { properties: "RDR_CargadorSCIS.properties", uniqueJars: 3, jars: ["RDR_AlertasBarrido.jar", "RDR_AlertasCocinado.jar", "RDR_CargadorSCIs.jar"] },
+      { properties: "RDR_CargadorSCFF_Carga.properties", uniqueJars: 2, jars: ["CSVToXML_Layout.jar", "RDR_CargadorEntity.jar"] },
+      { properties: "ExtraccionAltamiraReceive.properties", uniqueJars: 3, jars: ["RDR_AlertasCocinado.jar", "RDR_ConciliaColombia.jar", "XMASToken-0.0.1.jar"] },
+      { properties: "SSIsAlert.properties", uniqueJars: 3, jars: ["DeltaSSIs.jar", "HistAndZip.jar", "ReplaceString.jar"] },
+      { properties: "SSIsAlertFx.properties", uniqueJars: 3, jars: ["DeltaSSIsFx.jar", "HistAndZip.jar", "ReplaceString.jar"] },
+      { properties: "ValuationForResolution.properties", uniqueJars: 2, jars: ["ValuationForResolution.jar", "XMASToken-0.0.1.jar"] },
+      { properties: "DatosEconomicos.properties", uniqueJars: 2, jars: ["RDR_CSVToXML.jar", "xslx2csv.jar"] }
+    ];
+
+    const workflowCategories = [
+      { category: "BEANSHELL_INTERNAL", count: 3452 },
+      { category: "SUBWORKFLOW_CALL", count: 1039 },
+      { category: "COMMAND_NO_JAVA_EVIDENCE", count: 115 },
+      { category: "BEANSHELL_POTENTIAL_JAVA", count: 58 },
+      { category: "JAVA_DIRECT_OR_CLASSPATH", count: 15 },
+      { category: "SCRIPT_OR_PROPERTIES_POTENTIAL_JAVA", count: 3 }
+    ];
+
+    const workflowJavaCandidates = [
+      { workflow: "1_Investors_csv_recep", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\1_Investors_csv_recep.gsp" },
+      { workflow: "2_clientelaBDI_Altas_request", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\2_clientelaBDI_Altas_request.gsp" },
+      { workflow: "3_clientelaBDI_Altas_response", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\3_clientelaBDI_Altas_response.gsp" },
+      { workflow: "4_Investors_Client_Reg_resp", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\4_Investors_Client_Reg_resp.gsp" },
+      { workflow: "5_1_RDR_AltaFondos", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\5_1_RDR_AltaFondos.gsp" },
+      { workflow: "5_2_CSVToXML_Layout", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\5_2_CSVToXML_Layout.gsp" },
+      { workflow: "5_3_AltaFondos_CuadreCarga", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AltaFondosIP\\5_3_AltaFondos_CuadreCarga.gsp" },
+      { workflow: "Alert_Queu", zone: "Online_Setup", file: "workflows\\Custom\\RDR\\Online_Setup\\Alert\\Alert_Queu.gsp" },
+      { workflow: "AlertasBarrido", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AlertasBarrido.gsp" },
+      { workflow: "AlertasCocinado", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\AlertasCocinado.gsp" },
+      { workflow: "AlertGestorasModif", zone: "Publishing", file: "workflows\\Custom\\RDR\\Publishing\\Online\\AlertGestorasModif.gsp" },
+      { workflow: "AlertID_Request", zone: "Alert", file: "workflows\\Custom\\RDR\\Alert\\InvestorsPlan\\AlertID_Request.gsp" },
+      { workflow: "AltamiraServiceColombiaReq", zone: "Integracion_Altamira-Colombia", file: "workflows\\Custom\\RDR\\Integracion_Altamira-Colombia\\AltamiraServiceColombiaReq.gsp" },
+      { workflow: "Bloomberg_Request", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Issues\\Bloomberg_Request.gsp" },
+      { workflow: "CargadorMEXSDIs", zone: "Layout_Setup", file: "workflows\\Custom\\RDR\\Layout_Setup\\CargaSDIs\\CargadorMEXSDIs.gsp" },
+      { workflow: "CargadorSDIs", zone: "Layout_Setup", file: "workflows\\Custom\\RDR\\Layout_Setup\\CargaSDIs\\CargadorSDIs.gsp" },
+      { workflow: "CheckDatosRegulatorios", zone: "Publishing", file: "workflows\\Custom\\RDR\\Publishing\\Online\\CheckDatosRegulatorios.gsp" },
+      { workflow: "CounterpartyACK", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Ack_Nack_Process\\CounterpartyACK.gsp" },
+      { workflow: "CreateAliasLATAM", zone: "Publishing", file: "workflows\\Custom\\RDR\\Publishing\\Online\\CreateAliasLATAM.gsp" },
+      { workflow: "CreateShortname", zone: "Publishing", file: "workflows\\Custom\\RDR\\Publishing\\Online\\CreateShortname.gsp" },
+      { workflow: "DCS_AltaFondos", zone: "Online_Setup", file: "workflows\\Custom\\RDR\\Online_Setup\\Counterparties\\Funds\\DigitalCrossSelling\\DCS_AltaFondos.gsp" },
+      { workflow: "DuplicateRequest", zone: "Online_Setup", file: "workflows\\Custom\\RDR\\Online_Setup\\Counterparties\\Funds\\Utils\\DuplicateRequest.gsp" },
+      { workflow: "DuplicateSSIRequest", zone: "Alert", file: "workflows\\Custom\\RDR\\Alert\\DuplicateSSIRequest.gsp" },
+      { workflow: "DuplicateXMLReader", zone: "Layout_Setup", file: "workflows\\Custom\\RDR\\Layout_Setup\\DuplicateXMLReader.gsp" },
+      { workflow: "IndexMifidII", zone: "Mifid_II", file: "workflows\\Custom\\RDR\\Mifid_II\\IndexMifidII.gsp" },
+      { workflow: "IndexSSIS_Online", zone: "Alert", file: "workflows\\Custom\\RDR\\Alert\\Online\\IndexSSIS_Online.gsp" },
+      { workflow: "IssueACK", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Ack_Nack_Process\\IssueACK.gsp" },
+      { workflow: "JsonColombia", zone: "Integracion-Altamira-Colombia", file: "workflows\\Custom\\RDR\\Integracion-Altamira-Colombia\\JsonColombia.gsp" },
+      { workflow: "JsonColombiaTSEC", zone: "Integracion-Altamira-Colombia", file: "workflows\\Custom\\RDR\\Integracion-Altamira-Colombia\\JsonColombiaTSEC.gsp" },
+      { workflow: "Load_Baskets_AdHoc", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Issues\\Baskets\\Load_Baskets_AdHoc.gsp" },
+      { workflow: "Load_Baskets_Mx3", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Issues\\Baskets\\Load_Baskets_Mx3.gsp" },
+      { workflow: "Load_Baskets_Sponsors", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Issues\\Baskets\\Load_Baskets_Sponsors.gsp" },
+      { workflow: "Load_Refinitiv_Response", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Issues\\Load_Refinitiv_Response.gsp" },
+      { workflow: "RDR_Fircosoft_Request_Main", zone: "Bancomer", file: "workflows\\Custom\\RDR\\Bancomer\\RDR_Fircosoft_Request_Main.gsp" },
+      { workflow: "RDR_ISSUMEX_Alta", zone: "Layout_Setup", file: "workflows\\Custom\\RDR\\Layout_Setup\\CargaISSUMex\\RDR_ISSUMEX_Alta.gsp" },
+      { workflow: "RDR_SWIFT_ReceiveACK", zone: "Integracion_ABACO-GS", file: "workflows\\Custom\\RDR\\Integracion_ABACO-GS\\ACK\\RDR_SWIFT_ReceiveACK.gsp" },
+      { workflow: "ReceiveClientelaResponse", zone: "ACK-NACK", file: "workflows\\Custom\\RDR\\ACK-NACK\\ReceiveClientelaResponse.gsp" },
+      { workflow: "ReceiveMgcAbacoResponse", zone: "ACK-NACK", file: "workflows\\Custom\\RDR\\ACK-NACK\\ReceiveMgcAbacoResponse.gsp" },
+      { workflow: "Refinitiv_Load_Ratings", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Refinitiv\\Refinitiv_Load_Ratings.gsp" },
+      { workflow: "Refinitiv_Request_Response", zone: "Fileloading", file: "workflows\\Custom\\RDR\\Fileloading\\Refinitiv\\Refinitiv_Request_Response.gsp" },
+      { workflow: "RUN_JAR", zone: "Bash", file: "workflows\\Custom\\RDR\\Bash\\RUN_JAR.gsp" },
+      { workflow: "SSIs_Fx_Peticion", zone: "Alert", file: "workflows\\Custom\\RDR\\Alert\\InvestorsPlan\\SSIs_Fx_Peticion.gsp" },
+      { workflow: "SSIs_Fx_Relanzamiento", zone: "Alert", file: "workflows\\Custom\\RDR\\Alert\\InvestorsPlan\\SSIs_Fx_Relanzamiento.gsp" },
+      { workflow: "SSIsExec", zone: "Alert", file: "workflows\\Custom\\RDR\\Alert\\SSIsExec.gsp" },
+      { workflow: "TSEC_Generator", zone: "Integracion_Altamira-Colombia", file: "workflows\\Custom\\RDR\\Integracion_Altamira-Colombia\\TSEC_Generator.gsp" },
+      { workflow: "WarrantsDate", zone: "Integracion_ABACO-GS", file: "workflows\\Custom\\RDR\\Integracion_ABACO-GS\\Fileloading\\Issues\\WarrantsDate.gsp" }
+    ];
+
+    const workflowTriggerEvents = [
+      { event: "RDR_AlertGestorasModif", type: "GenericEvent", workflow: "AlertGestorasModif" },
+      { event: "AlertID_Request", type: "GenericEvent", workflow: "AlertID_Request" },
+      { event: "RDR_AltamiraColServiceReq", type: "GenericEvent", workflow: "AltamiraServiceColombiaReq" },
+      { event: "RDR_CargadorMEXSDIs", type: "GenericEvent", workflow: "CargadorMEXSDIs" },
+      { event: "RDR_CargadorSDIs", type: "GenericEvent", workflow: "CargadorSDIs" },
+      { event: "RDR_DatosRegu", type: "GenericEvent", workflow: "CheckDatosRegulatorios" },
+      { event: "RDR_IndexMIFIDII", type: "GenericEvent", workflow: "IndexMifidII" },
+      { event: "RDR_ReceiveSISetupQueueRequest", type: "OnJMSMessage", workflow: "IndexSSIS_Online" },
+      { event: "RDR_LoadBasketsAdHoc", type: "GenericEvent", workflow: "Load_Baskets_AdHoc" },
+      { event: "RDR_ReceiveBasketsMx3", type: "GenericEvent", workflow: "Load_Baskets_Mx3" },
+      { event: "RDR_CargaBasketSponsor", type: "GenericEvent", workflow: "Load_Baskets_Sponsors" },
+      { event: "RDR_Fircosoft_Request_Main", type: "GenericEvent", workflow: "RDR_Fircosoft_Request_Main" },
+      { event: "RDR_ISSUEMEX_Alta", type: "GenericEvent", workflow: "RDR_ISSUMEX_Alta" },
+      { event: "RDR_ReceiveMGCMessageBancomer", type: "OnJMSMessage", workflow: "ReceiveMgcAbacoResponse" },
+      { event: "Refinitiv_Request_Response", type: "GenericEvent", workflow: "Refinitiv_Request_Response" },
+      { event: "RDR_SSIS_Fx_Alert_Online", type: "GenericEvent", workflow: "SSIs_Fx_Peticion" },
+      { event: "RDR_AlertFx_Relanzamiento1", type: "GenericEvent", workflow: "SSIs_Fx_Relanzamiento" },
+      { event: "RDR_WarrantsDate", type: "GenericEvent", workflow: "WarrantsDate" }
+    ];
+
+    const workflowJavaTargets = {
+      "1_Investors_csv_recep": { java: "Investors_csv_process.jar", evidence: "Inferido por workflow/properties" },
+      "2_clientelaBDI_Altas_request": { java: "clientelaBDI_Altas_request.jar", evidence: "Inferido por workflow/properties" },
+      "3_clientelaBDI_Altas_response": { java: "clientelaBDI_Altas_response.jar", evidence: "Inferido por workflow/properties" },
+      "4_Investors_Client_Reg_resp": { java: "Investors_Client_Reg_resp.jar", evidence: "Inferido por workflow/properties" },
+      "5_1_RDR_AltaFondos": { java: "AltaFondos_Genera_csv.jar / AltaFondos_CuadreCarga.jar / CSVToXML_Layout.jar", evidence: "Workflow orquestador AltaFondos" },
+      "5_2_CSVToXML_Layout": { java: "CSVToXML_Layout.jar", evidence: "Inferido por workflow/properties" },
+      "5_3_AltaFondos_CuadreCarga": { java: "AltaFondos_CuadreCarga.jar", evidence: "Inferido por workflow/properties" },
+      "Alert_Queu": { java: "cmd dinamico; probable API_REST.jar", libs: "XMASToken-0.0.1.jar / ConexionBD.jar / librerias HTTP si usa main.Peticion", evidence: "CALL JAVA con commandLine=cmd" },
+      "AlertasBarrido": { java: "RDR_AlertasBarrido.jar", evidence: "Inferido por workflow/properties" },
+      "AlertasCocinado": { java: "RDR_AlertasCocinado.jar", evidence: "Inferido por workflow/properties" },
+      "AlertGestorasModif": { java: "cmd dinamico; probable API_REST.jar", libs: "XMASToken-0.0.1.jar / ConexionBD.jar / librerias HTTP si usa main.Peticion", evidence: "CALL JAVA con commandLine=cmd" },
+      "AlertID_Request": { java: "cmd dinamico; probable API_REST.jar", libs: "XMASToken-0.0.1.jar / ConexionBD.jar / librerias HTTP si usa main.Peticion", evidence: "CALL JAVA con commandLine=cmd" },
+      "AltamiraServiceColombiaReq": { java: "cmd dinamico; posible JSON_Altamira.jar / RDR_ConciliaColombia.jar", evidence: "Call Java dinamico" },
+      "Bloomberg_Request": { java: "openFigi.jar", evidence: "Inferido por actividad Bloomberg/OpenFIGI" },
+      "CargadorMEXSDIs": { java: "RDR_CargadorSDIs.jar", evidence: "Workflow CargaSDIs" },
+      "CargadorSDIs": { java: "RDR_CargadorSDIs.jar", evidence: "Workflow CargaSDIs" },
+      "CheckDatosRegulatorios": { java: "Java interno de insercion; JAR externo no literal", evidence: "Actividad Insercion JAVA" },
+      "CounterpartyACK": { java: "Java interno ACK/NACK; JAR externo no literal", evidence: "Actividad Insercion JAVA RRM1" },
+      "CreateAliasLATAM": { java: "Java interno online; JAR externo no literal", evidence: "Actividad Insercion JAVA" },
+      "CreateShortname": { java: "Java interno online; JAR externo no literal", evidence: "Actividad Insercion JAVA" },
+      "DCS_AltaFondos": { java: "AltaFondos_Genera_csv.jar / AltaFondos_CuadreCarga.jar", evidence: "Workflow DigitalCrossSelling AltaFondos" },
+      "DuplicateRequest": { java: "Java interno online; JAR externo no literal", evidence: "Actividad Insercion JAVA" },
+      "DuplicateSSIRequest": { java: "Java interno SSIs; JAR externo no literal", evidence: "Actividad Insercion JAVA" },
+      "DuplicateXMLReader": { java: "Java interno XML; JAR externo no literal", evidence: "Actividad Insercion JAVA" },
+      "IndexMifidII": { java: "RDR_MifidII.jar", evidence: "Inferido por workflow MifidII" },
+      "IndexSSIS_Online": { java: "cmd dinamico; probable API_REST.jar", libs: "XMASToken-0.0.1.jar / ConexionBD.jar / librerias HTTP si usa main.Peticion", evidence: "Evento OnJMSMessage + CALL JAVA" },
+      "IssueACK": { java: "Java interno ACK/NACK; JAR externo no literal", evidence: "Actividad Insercion JAVA RRM1" },
+      "JsonColombia": { java: "JSON_Altamira.jar", evidence: "Inferido por workflow JsonColombia" },
+      "JsonColombiaTSEC": { java: "JSON_Altamira.jar / TSEC_Generator.jar / XMASToken-0.0.1.jar", evidence: "Workflow JsonColombiaTSEC + JAR TOKEN" },
+      "Load_Baskets_AdHoc": { java: "RDR_LoadBasketsAdHoc.jar / RDR_AlertasCocinado.jar", evidence: "Actividades CALL JAVA y CALL JAVA ALERTASCOCINADO" },
+      "Load_Baskets_Mx3": { java: "Generacion XSLT/script; JAR no literal", evidence: "Generar comandos XSLT" },
+      "Load_Baskets_Sponsors": { java: "Generacion XSLT/script; JAR no literal", evidence: "Generar comandos XSLT" },
+      "Load_Refinitiv_Response": { java: "openFigi.jar / refinitivFilter.jar / refinitivderivativesloader.jar", evidence: "Actividades Java OpenFIGI/Filtrado/LoadDerivative" },
+      "RDR_Fircosoft_Request_Main": { java: "Java dinamico LO MNEM; JAR no literal", evidence: "Actividad JAVA LO MNEM" },
+      "RDR_ISSUMEX_Alta": { java: "RDR_CargadorIssueMex.jar -> main.java.cargadorissuemex.CargaIssueMex", libs: "ojdbc8.jar / log4j.jar / commons-pool-1.5.4.jar / ConexionBD.jar / log4jCargaIssueMex.properties", evidence: "Classpath y main explicitos en GSP" },
+      "RDR_SWIFT_ReceiveACK": { java: "Java interno ACK/NACK; JAR externo no literal", evidence: "Actividad Insercion JAVA RRM1" },
+      "ReceiveClientelaResponse": { java: "clientelaBDI_Altas_response.jar / clientelaBDI_Altas_responseSCF.jar", evidence: "Parse ACK/NACK" },
+      "ReceiveMgcAbacoResponse": { java: "Java interno ACK/NACK MGC/ABACO; JAR externo no literal", evidence: "Parse ACK/NACK" },
+      "Refinitiv_Load_Ratings": { java: "Refinitiv_Ratings.jar / CargaRatingsInternos.jar", evidence: "Workflow Refinitiv ratings" },
+      "Refinitiv_Request_Response": { java: "openFigi.jar / refinitivFilter.jar / refinitivderivativesloader.jar", evidence: "Java OpenFigi + Java Filtrado + Java LoadDerivative" },
+      "RUN_JAR": { java: "JAR parametrico recibido por el workflow", evidence: "Workflow generico RUN_JAR" },
+      "SSIs_Fx_Peticion": { java: "API_REST.jar -> main.Peticion", libs: "ojdbc8.jar / commons-dbcp-1.4.jar / log4j.jar / commons-pool-1.5.4.jar / XMASToken-0.0.1.jar / ConexionBD.jar / httpclient-4.5.12.jar / httpcore-4.4.13.jar / json-20160212.jar / commons-logging-1.2.jar / unirest-java-1.4.9.jar / gson-2.6.2.jar", evidence: "Classpath y main explicitos en GSP" },
+      "SSIs_Fx_Relanzamiento": { java: "API_REST.jar -> main.Peticion", libs: "ojdbc8.jar / commons-dbcp-1.4.jar / log4j.jar / commons-pool-1.5.4.jar / XMASToken-0.0.1.jar / ConexionBD.jar / httpclient-4.5.12.jar / httpcore-4.4.13.jar / json-20160212.jar / commons-logging-1.2.jar / unirest-java-1.4.9.jar / gson-2.6.2.jar", evidence: "Classpath y main explicitos en GSP" },
+      "SSIsExec": { java: "DeltaSSIs.jar / DeltaSSIsFx.jar / API_REST.jar segun flujo", evidence: "Workflow SSIsExec" },
+      "TSEC_Generator": { java: "TSEC_Generator.jar / XMASToken-0.0.1.jar", evidence: "Actividad JAR TOKEN" },
+      "WarrantsDate": { java: "RDR_Warrants_HAB.jar / RDR_ME_Load_Warrants.jar", evidence: "Inferido por workflow Warrants" }
+    };
+
+    const explicitPropertyWorkflowLinks = [
+      { source: "RDR_Refinitiv_REQ_RES.properties", workflow: "Refinitiv_Request_Response", evidence: "NomWorkflow=Refinitiv_Request_Response" },
+      { source: "RefinitivIssueMultiRequest.properties", workflow: "Refinitiv_Request_Response", evidence: "NomWorkflow=Refinitiv_Request_Response" },
+      { source: "RefinitivIssuerBatchRequest.properties", workflow: "Refinitiv_Request_Response", evidence: "NomWorkflow=Refinitiv_Request_Response" },
+      { source: "Refinitiv_Undly_Enrichment_futures.properties", workflow: "Refinitiv_Request_Response", evidence: "NomWorkflow=Refinitiv_Request_Response" },
+      { source: "Refinitiv_Undly_Enrichment_issues.properties", workflow: "Refinitiv_Request_Response", evidence: "NomWorkflow=Refinitiv_Request_Response" }
+    ];
+
+    const operationalKnownUsage = {
+      rdrRules: "Uso conocido: se ejecuta cuando se guarda por ventana.",
+      servicesRDR: "Uso conocido: se utiliza en queries de peticion/respuesta."
+    };
+
+    const runtimeUncoveredProjects = [
+      { project: "concurrenteRDR", javaFiles: 14, reading: "Sin llamada visible; posible ejecucion interna o script externo", check: "Buscar en scripts/Control-M y logs batch" },
+      { project: "DeltaSSIProject", javaFiles: 11, reading: "Codigo alternativo o duplicado de DeltaSSIs sin llamada visible", check: "Confirmar si se despliega o queda historico" },
+      { project: "maestroEmisionesMergeRDR", javaFiles: 5, reading: "Posible version antigua o duplicada", check: "Validar contra inventario de despliegue" },
+      { project: "maestroEmisionesRDR", javaFiles: 7, reading: "Posible version antigua o duplicada", check: "Validar contra inventario de despliegue" },
+      { project: "maestroEmisionesRDR2", javaFiles: 7, reading: "Posible version antigua o duplicada", check: "Validar contra inventario de despliegue" },
+      { project: "NormativosUtilidades", javaFiles: 10, reading: "Utilidad candidata a dependencia o reemplazo", check: "Buscar imports desde otros proyectos" },
+      { project: "ProductosBatch", javaFiles: 1, reading: "Sin llamada visible; posible script externo", check: "Buscar en planificadores y scripts .sh/.bat" },
+      { project: "ProjectDAO", javaFiles: 32, reading: "Dependencia interna, no JAR lanzable esperado", check: "Confirmar como libreria de otros proyectos" },
+      { project: "ProjectSQL", javaFiles: 9, reading: "Dependencia interna, no JAR lanzable esperado", check: "Confirmar como libreria de otros proyectos" },
+      { project: "RDR_CargaCAC1", javaFiles: 7, reading: "Sin llamada visible en cruce completo", check: "Revisar scripts y despliegue batch" },
+      { project: "RDR_ConciliaInstLiqAbaco5", javaFiles: 9, reading: "Variante/version alternativa de conciliacion", check: "Comparar con RDR_ConciliaInstLiqAbaco" },
+      { project: "RDR_DELTA_EMISORES", javaFiles: 1, reading: "Posible duplicado/version historica", check: "Confirmar si se despliega" },
+      { project: "RDR_INFCIERRE_REPORTE", javaFiles: 5, reading: "Candidato a historico o reporting externo", check: "Buscar planificador/reporting" },
+      { project: "RDR_MapeoSSIs", javaFiles: 3, reading: "Sin llamada visible aunque existe familia SSIs", check: "Comparar con MapeoSIS y workflows SSIs" },
+      { project: "RDR_OFS_REPORTE", javaFiles: 2, reading: "Sin llamada visible; posible reporting externo", check: "Buscar planificador/reporting" },
+      { project: "RDR_SW", javaFiles: 2, reading: "Sin referencia estatica en properties/workflows", check: "Buscar planificador, scripts o dependencia interna" },
+      { project: "RDRconciliacion", javaFiles: 1, reading: "Posible version antigua o utilidad puntual", check: "Validar si se despliega" },
+      { project: "rdrmaestroemisiones", javaFiles: 1, reading: "Posible duplicado/version antigua", check: "Validar contra inventario de despliegue" },
+      { project: "ReplaceStringtoEmptyProject", javaFiles: 1, reading: "Utilidad puntual sin llamada visible", check: "Buscar scripts/manuales" },
+      { project: "TraductorXML", javaFiles: 3, reading: "Utilidad XML sin llamada visible", check: "Buscar scripts y workflows de transformacion" }
+    ];
+
+    function renderWorkflowsTab() {
+      const categoryMax = Math.max(...workflowCategories.map(item => item.count));
+      document.getElementById("workflow-category-bars").innerHTML = workflowCategories.map(item => {
+        const percent = (item.count / categoryMax) * 100;
+        return `
+          <div class="bar-row">
+            <div class="bar-label" title="${item.category}">${item.category}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${percent.toFixed(1)}%"></div></div>
+            <div class="bar-value">${item.count}</div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("runtime-uncovered-tbody").innerHTML = runtimeUncoveredProjects
+        .sort((a, b) => a.project.localeCompare(b.project))
+        .map(item => `
+          <tr>
+            <td><strong>${item.project}</strong></td>
+            <td class="num">${item.javaFiles}</td>
+            <td style="color:var(--muted);font-size:0.9rem">${item.reading}</td>
+            <td>${item.check}</td>
+          </tr>
+        `).join("");
+
+      document.getElementById("operational-known-tbody").innerHTML = Object.entries(operationalKnownUsage)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([project, usage]) => `
+          <tr>
+            <td><strong>${project}</strong></td>
+            <td>${usage}</td>
+          </tr>
+        `).join("");
+
+      const searchEl = document.getElementById("workflow-search");
+      const zoneEl = document.getElementById("workflow-zone");
+      const statusEl = document.getElementById("workflow-status");
+      const countEl = document.getElementById("workflow-count");
+      const zones = [...new Set(workflowJavaCandidates.map(item => item.zone))].sort((a, b) => a.localeCompare(b));
+      zoneEl.innerHTML = `<option value="all">Todas</option>${zones.map(zone => `<option value="${zone}">${zone}</option>`).join("")}`;
+
+      function drawWorkflows() {
+        const text = searchEl.value.trim().toLowerCase();
+        const zone = zoneEl.value;
+        const status = statusEl.value;
+        const rows = workflowJavaCandidates.filter(item => {
+          const target = workflowJavaTargets[item.workflow] || { java: "JAR no resuelto", libs: "No resuelto", evidence: "Pendiente de comando runtime" };
+          const isPending = target.java.toLowerCase().includes("dinamico") || target.java.toLowerCase().includes("no literal") || target.java.toLowerCase().includes("parametrico") || target.java.toLowerCase().includes("no resuelto");
+          const searchableText = [item.workflow, item.zone, item.file, target.java, target.libs, target.evidence].join(" ").toLowerCase();
+          const matchesText = text === "" || searchableText.includes(text);
+          const matchesZone = zone === "all" || item.zone === zone;
+          const matchesStatus = status === "all" || (status === "pending" ? isPending : !isPending);
+          return matchesText && matchesZone && matchesStatus;
+        }).sort((a, b) => a.zone.localeCompare(b.zone) || a.workflow.localeCompare(b.workflow));
+
+        countEl.textContent = `${rows.length} workflows`;
+        document.getElementById("workflow-tbody").innerHTML = rows.map(item => {
+          const target = workflowJavaTargets[item.workflow] || { java: "JAR no resuelto", libs: "No resuelto", evidence: "Pendiente de comando runtime" };
+          const libs = target.libs || "Sin librerias explicitas en el analisis; confirmar classpath runtime";
+          return `
+            <tr>
+              <td><strong>${item.workflow}</strong></td>
+              <td><span class="project-chip">${item.zone}</span></td>
+              <td style="font-size:0.86rem"><strong>${target.java}</strong></td>
+              <td style="font-size:0.82rem;color:var(--muted)">${libs}</td>
+              <td><span class="badge ${target.java.includes("dinamico") || target.java.includes("no literal") || target.java.includes("parametrico") ? "risk-medium" : "risk-low"}">${target.evidence}</span></td>
+              <td style="font-size:0.82rem;color:var(--muted)">${item.file}</td>
+              <td>Validar en DEV capturando el comando final y la version real de Java.</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      document.getElementById("workflow-events-tbody").innerHTML = workflowTriggerEvents
+        .sort((a, b) => a.workflow.localeCompare(b.workflow) || a.event.localeCompare(b.event))
+        .map(item => `
+          <tr>
+            <td><strong>${item.event}</strong></td>
+            <td><span class="badge ${item.type === "OnJMSMessage" ? "risk-high" : "risk-medium"}">${item.type}</span></td>
+            <td>${item.workflow}</td>
+          </tr>
+        `).join("");
+
+      searchEl.addEventListener("input", drawWorkflows);
+      zoneEl.addEventListener("change", drawWorkflows);
+      statusEl.addEventListener("change", drawWorkflows);
+      drawWorkflows();
+    }
+
+    function renderFlowE2ETab() {
+      const searchEl = document.getElementById("flow-search");
+      const eventEl = document.getElementById("flow-event");
+      const upstreamEl = document.getElementById("flow-upstream");
+      const chainEl = document.getElementById("flow-chain");
+      const countEl = document.getElementById("flow-count");
+      const bodyEl = document.getElementById("flow-tbody");
+      const summaryEl = document.getElementById("flow-summary");
+
+      function normalizeId(value) {
+        return (value || "").toString().toLowerCase().replace(/[^a-z0-9]/g, "");
+      }
+
+      function cleanJarName(jar) {
+        return (jar || "")
+          .replace(/^.*[\\/]/, "")
+          .replace(/\.jar$/i, "")
+          .replace(/-\d+(?:\.\d+)+(?:[-_.]?[a-z0-9]+)?$/i, "");
+      }
+
+      const allProjectNames = new Set([
+        ...data.map(item => item.project),
+        ...propertiesMap.map(item => item.project),
+        ...scriptHitsMap.map(item => item.project)
+      ]);
+
+      const projectByJarNorm = new Map();
+      propertiesMap.forEach(item => {
+        projectByJarNorm.set(normalizeId(item.jar), item.project);
+      });
+
+      function resolveProjectFromJar(rawJar) {
+        const jarWithExt = /\.jar$/i.test(rawJar) ? rawJar : `${rawJar}.jar`;
+        const exact = projectByJarNorm.get(normalizeId(jarWithExt));
+        if (exact) return exact;
+
+        const cleaned = cleanJarName(rawJar);
+        const byProject = [...allProjectNames].find(name => normalizeId(name) === normalizeId(cleaned));
+        if (byProject) return byProject;
+
+        const byStartsWith = [...allProjectNames].find(name => {
+          const n = normalizeId(name);
+          const c = normalizeId(cleaned);
+          return n.startsWith(c) || c.startsWith(n);
+        });
+        return byStartsWith || cleaned;
+      }
+
+      function extractProjectsFromJavaTarget(javaText) {
+        const jars = [...(javaText || "").matchAll(/([A-Za-z0-9_.-]+\.jar)/g)].map(m => m[1]);
+        const projects = new Set();
+        jars.forEach(jar => projects.add(resolveProjectFromJar(jar)));
+        return [...projects].filter(Boolean).sort((a, b) => a.localeCompare(b));
+      }
+
+      const flowRowsBase = workflowJavaCandidates.map(item => {
+        const target = workflowJavaTargets[item.workflow] || { java: "JAR no resuelto", evidence: "Pendiente" };
+        const events = workflowTriggerEvents.filter(ev => ev.workflow === item.workflow);
+        const directProps = explicitPropertyWorkflowLinks.filter(link => link.workflow === item.workflow);
+        const javaProjects = extractProjectsFromJavaTarget(target.java);
+        const propsByJavaRows = propertiesMap.filter(p => javaProjects.includes(p.project));
+        const scriptsByJavaRows = scriptHitsMap.filter(s => javaProjects.includes(s.project));
+
+        return {
+          workflow: item.workflow,
+          zone: item.zone,
+          javaTarget: target.java,
+          javaEvidence: target.evidence || "Sin evidencia",
+          events,
+          directProps,
+          javaProjects,
+          propsByJavaRows,
+          scriptsByJavaRows,
+          hasEvent: events.length > 0,
+          hasDirectProps: directProps.length > 0,
+          hasPropsByJava: propsByJavaRows.length > 0,
+          hasScriptsByJava: scriptsByJavaRows.length > 0
+        };
+      });
+
+      function isFullChain(row) {
+        return row.hasEvent && (row.hasDirectProps || row.hasPropsByJava || row.hasScriptsByJava) && row.javaTarget !== "JAR no resuelto";
+      }
+
+      function flowBadge(row) {
+        if (isFullChain(row)) return `<span class="badge risk-low">Completa</span>`;
+        if (row.hasEvent || row.hasDirectProps || row.hasPropsByJava || row.hasScriptsByJava) return `<span class="badge risk-medium">Parcial</span>`;
+        return `<span class="badge risk-high">Sin traza</span>`;
+      }
+
+      function drawSummary(rows) {
+        const total = rows.length;
+        const withEvent = rows.filter(r => r.hasEvent).length;
+        const withUpstream = rows.filter(r => r.hasDirectProps || r.hasPropsByJava || r.hasScriptsByJava).length;
+        const full = rows.filter(isFullChain).length;
+
+        summaryEl.innerHTML = `
+          <div class="flow-kpi"><div class="flow-kpi-label">Workflows</div><div class="flow-kpi-value">${total}</div></div>
+          <div class="flow-kpi"><div class="flow-kpi-label">Con Evento</div><div class="flow-kpi-value">${withEvent}</div></div>
+          <div class="flow-kpi"><div class="flow-kpi-label">Con Origen</div><div class="flow-kpi-value">${withUpstream}</div></div>
+          <div class="flow-kpi"><div class="flow-kpi-label">Cadena Completa</div><div class="flow-kpi-value">${full}</div></div>
+        `;
+      }
+
+      function draw() {
+        const txt = (searchEl.value || "").trim().toLowerCase();
+        const eventFilter = eventEl.value;
+        const upstreamFilter = upstreamEl.value;
+        const chainFilter = chainEl.value;
+
+        let rows = flowRowsBase.filter(row => {
+          const matchesText = txt === "" ||
+            row.workflow.toLowerCase().includes(txt) ||
+            row.zone.toLowerCase().includes(txt) ||
+            row.javaTarget.toLowerCase().includes(txt) ||
+            row.events.some(e => e.event.toLowerCase().includes(txt) || e.type.toLowerCase().includes(txt)) ||
+            row.directProps.some(p => p.source.toLowerCase().includes(txt)) ||
+            row.propsByJavaRows.some(p => p.props.join(" ").toLowerCase().includes(txt) || p.project.toLowerCase().includes(txt)) ||
+            row.scriptsByJavaRows.some(s => s.scripts.join(" ").toLowerCase().includes(txt) || s.project.toLowerCase().includes(txt));
+
+          const matchesEvent = eventFilter === "all" || (eventFilter === "yes" && row.hasEvent) || (eventFilter === "no" && !row.hasEvent);
+
+          const matchesUpstream =
+            upstreamFilter === "all" ||
+            (upstreamFilter === "direct-props" && row.hasDirectProps) ||
+            (upstreamFilter === "props-java" && row.hasPropsByJava) ||
+            (upstreamFilter === "scripts-java" && row.hasScriptsByJava) ||
+            (upstreamFilter === "none" && !row.hasDirectProps && !row.hasPropsByJava && !row.hasScriptsByJava);
+
+          const full = isFullChain(row);
+          const matchesChain = chainFilter === "all" || (chainFilter === "full" && full) || (chainFilter === "partial" && !full);
+
+          return matchesText && matchesEvent && matchesUpstream && matchesChain;
+        });
+
+        rows = rows.sort((a, b) => a.workflow.localeCompare(b.workflow));
+        countEl.textContent = `${rows.length} workflows`;
+        drawSummary(rows);
+
+        bodyEl.innerHTML = rows.map(row => {
+          const events = row.events.length
+            ? row.events.map(e => `<span class="project-chip" style="margin:2px;display:inline-block">${e.event} (${e.type})</span>`).join("")
+            : `<span style="color:var(--muted)">Sin evento mapeado</span>`;
+
+          const directProps = row.directProps.length
+            ? row.directProps.map(p => `<span class="project-chip" style="margin:2px;display:inline-block">${p.source}</span>`).join("")
+            : `<span style="color:var(--muted)">No detectado</span>`;
+
+          const propsByJava = row.propsByJavaRows.length
+            ? row.propsByJavaRows.slice(0, 6).map(p => `<span class="project-chip" style="margin:2px;display:inline-block">${p.project} (${p.callers})</span>`).join("") + (row.propsByJavaRows.length > 6 ? `<span style="color:var(--muted)"> +${row.propsByJavaRows.length - 6} mas</span>` : "")
+            : `<span style="color:var(--muted)">No detectado</span>`;
+
+          const scriptsByJava = row.scriptsByJavaRows.length
+            ? row.scriptsByJavaRows.slice(0, 6).map(s => `<span class="project-chip" style="margin:2px;display:inline-block">${s.project} (${s.count})</span>`).join("") + (row.scriptsByJavaRows.length > 6 ? `<span style="color:var(--muted)"> +${row.scriptsByJavaRows.length - 6} mas</span>` : "")
+            : `<span style="color:var(--muted)">No detectado</span>`;
+
+          return `
+            <tr>
+              <td><strong>${row.workflow}</strong><br><span style="font-size:0.8rem;color:var(--muted)">${row.zone}</span></td>
+              <td style="font-size:0.86rem"><strong>${row.javaTarget}</strong><br><span style="font-size:0.8rem;color:var(--muted)">${row.javaEvidence}</span></td>
+              <td style="font-size:0.82rem">${events}</td>
+              <td style="font-size:0.82rem">${directProps}</td>
+              <td style="font-size:0.82rem">${propsByJava}</td>
+              <td style="font-size:0.82rem">${scriptsByJava}</td>
+              <td>${flowBadge(row)}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      searchEl.addEventListener("input", draw);
+      eventEl.addEventListener("change", draw);
+      upstreamEl.addEventListener("change", draw);
+      chainEl.addEventListener("change", draw);
+      draw();
+    }
+
+    function renderPropertiesTab() {
+      const searchEl = document.getElementById("prop-search");
+      const statusEl = document.getElementById("prop-status");
+      const propCount = document.getElementById("prop-count");
+      const distCardsEl = document.getElementById("prop-dist-cards");
+      const multiBodyEl = document.getElementById("prop-tbody-multi");
+
+      distCardsEl.innerHTML = propertiesUniqueJarDistribution
+        .sort((a, b) => a.uniqueJars - b.uniqueJars)
+        .map(item => `
+          <div class="dist-card">
+            <div class="dist-label">${item.uniqueJars} jars unicos</div>
+            <div class="dist-value">${item.propertiesCount}</div>
+          </div>
+        `)
+        .join("");
+
+      multiBodyEl.innerHTML = [...propertiesWithTwoOrMoreUniqueJars]
+        .sort((a, b) => b.uniqueJars - a.uniqueJars || a.properties.localeCompare(b.properties))
+        .map(item => `
+          <tr>
+            <td><strong>${item.properties}</strong></td>
+            <td class="num">${item.uniqueJars}</td>
+            <td style="font-size:0.82rem">${item.jars.map(j => `<span class="project-chip" style="margin:2px;display:inline-block">${j}</span>`).join("")}</td>
+          </tr>
+        `)
+        .join("");
+
+      function normalizeText(value) {
+        return (value || "")
+          .toString()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[\s_\-./]+/g, "")
+          .trim();
+      }
+
+      function draw() {
+        const txt = normalizeText(searchEl.value);
+        const status = statusEl.value;
+
+        const rows = propertiesMap.filter(r =>
+          (status === "all" || status === "found") &&
+          (
+            txt === "" ||
+            normalizeText(r.project).includes(txt) ||
+            normalizeText(r.jar).includes(txt) ||
+            normalizeText(r.props.join(" ")).includes(txt)
+          )
+        );
+
+        const noRows = noPropertiesProjects.filter(r =>
+          (status === "all" || status === "missing") &&
+          (
+            txt === "" ||
+            normalizeText(r.project).includes(txt) ||
+            normalizeText(r.note).includes(txt)
+          )
+        );
+
+        const multiRows = [...propertiesWithTwoOrMoreUniqueJars].filter(item =>
+          (status === "all" || status === "found") &&
+          (
+            txt === "" ||
+            normalizeText(item.properties).includes(txt) ||
+            normalizeText(item.jars.join(" ")).includes(txt)
+          )
+        );
+
+        propCount.textContent = (rows.length + noRows.length) + " proyectos";
+
+        multiBodyEl.innerHTML = multiRows
+          .sort((a, b) => b.uniqueJars - a.uniqueJars || a.properties.localeCompare(b.properties))
+          .map(item => `
+            <tr>
+              <td><strong>${item.properties}</strong></td>
+              <td class="num">${item.uniqueJars}</td>
+              <td style="font-size:0.82rem">${item.jars.map(j => `<span class="project-chip" style="margin:2px;display:inline-block">${j}</span>`).join("")}</td>
+            </tr>
+          `)
+          .join("");
+
+        document.getElementById("prop-tbody-found").innerHTML = rows
+          .sort((a,b) => b.callers - a.callers)
+          .map(r => `<tr>
+            <td><strong>${r.project}</strong></td>
+            <td style="font-size:0.82rem;color:var(--muted)">${r.jar}</td>
+            <td class="num">${r.callers}</td>
+            <td style="font-size:0.82rem">${r.props.map(p => `<span class="project-chip" style="margin:2px;display:inline-block">${p}</span>`).join("")}</td>
+          </tr>`).join("");
+
+        document.getElementById("prop-tbody-missing").innerHTML = noRows
+          .sort((a,b) => a.project.localeCompare(b.project))
+          .map(r => `<tr>
+            <td><strong>${r.project}</strong></td>
+            <td colspan="3" style="color:var(--muted);font-size:0.92rem">${r.note}</td>
+          </tr>`).join("");
+      }
+
+      searchEl.addEventListener("input", draw);
+      searchEl.addEventListener("change", draw);
+      statusEl.addEventListener("change", draw);
+      draw();
+    }
+
+    function renderScriptsTab() {
+      const searchEl = document.getElementById("scripts-search");
+      const minEl = document.getElementById("scripts-min");
+      const sortEl = document.getElementById("scripts-sort");
+      const countEl = document.getElementById("scripts-count");
+      const bodyEl = document.getElementById("scripts-tbody");
+
+      function draw() {
+        const txt = searchEl.value.trim().toLowerCase();
+        const min = Number(minEl.value || "1");
+        const sort = sortEl.value;
+
+        let rows = scriptHitsMap.filter(item =>
+          item.count >= min &&
+          (txt === "" || item.project.toLowerCase().includes(txt) || item.scripts.join(" ").toLowerCase().includes(txt))
+        );
+
+        rows.sort((a, b) => {
+          if (sort === "count-desc") return b.count - a.count || a.project.localeCompare(b.project);
+          if (sort === "count-asc") return a.count - b.count || a.project.localeCompare(b.project);
+          return a.project.localeCompare(b.project);
+        });
+
+        countEl.textContent = `${rows.length} proyectos`;
+        bodyEl.innerHTML = rows.map(item => `
+          <tr>
+            <td><strong>${item.project}</strong></td>
+            <td class="num">${item.count}</td>
+            <td style="font-size:0.82rem">${item.scripts.map(s => `<span class="project-chip" style="margin:2px;display:inline-block">${s}</span>`).join("")}</td>
+          </tr>
+        `).join("");
+      }
+
+      searchEl.addEventListener("input", draw);
+      minEl.addEventListener("change", draw);
+      sortEl.addEventListener("change", draw);
+      draw();
+    }
+
+    renderTopBars();
+    renderPlanBlocks();
+    applyFilters();
+    renderPropertiesTab();
+    renderScriptsTab();
+    renderWorkflowsTab();
+    renderFlowE2ETab();
+  </script>
+</body>
+</html>
