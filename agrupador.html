@@ -409,6 +409,8 @@
       </div>
       <button id="btnRefresh" class="btn btn-light" onclick="loadData()" title="Sincronizar ahora con Google Sheets">🔄
         Sincronizar</button>
+      <button class="btn btn-outline" style="background:#00b4d8; color:white; border:none;" onclick="pushLocalToSheets()"
+        title="Enviar el estado local actual de tus bloques y tarjetas al Google Sheet">📤 Guardar Local en Sheets</button>
       <input type="text" id="searchInput" placeholder="Buscar proyecto..." onkeyup="renderAll()"
         style="padding:10px 16px; border-radius:99px; border:none; min-width:220px;">
       <button class="btn btn-light" onclick="location.href='index.html'" title="Volver al tablero principal">⬅ Volver al
@@ -562,26 +564,38 @@
 
         const sheetData = await response.json();
 
-        sheetData.forEach(row => {
-          if (row.projectId === '__CONFIG__GROUP_BLOCKS__') {
-            if (row.checklist && row.checklist.trim().startsWith('[')) {
-              try {
-                const parsedBlocks = JSON.parse(row.checklist);
-                if (Array.isArray(parsedBlocks) && parsedBlocks.length > 0) {
-                  blocks = parsedBlocks;
-                }
-              } catch (e) { }
+        if (sheetData.length === 0) {
+          // Si el Google Sheet está recién creado y totalmente vacío, subimos el estado local actual automáticamente
+          console.log("Empty Google Sheet detected. Uploading current local state...");
+          document.getElementById('loadingText').innerHTML = '<div class="spinner"></div><div style="margin-top:10px;">Nuevo Google Sheet detectado. Subiendo estado local...</div>';
+          await syncBlocks();
+          for (const p of projects) {
+            if (p.groupBlock) {
+              await syncProjectGroup(p);
             }
-            return;
           }
+        } else {
+          sheetData.forEach(row => {
+            if (row.projectId === '__CONFIG__GROUP_BLOCKS__') {
+              if (row.checklist && row.checklist.trim().startsWith('[')) {
+                try {
+                  const parsedBlocks = JSON.parse(row.checklist);
+                  if (Array.isArray(parsedBlocks) && parsedBlocks.length > 0) {
+                    blocks = parsedBlocks;
+                  }
+                } catch (e) { }
+              }
+              return;
+            }
 
-          let p = projects.find(proj => proj.id === row.projectId);
-          if (p) {
-            if (row.groupBlock) {
-              p.groupBlock = row.groupBlock;
+            let p = projects.find(proj => proj.id === row.projectId);
+            if (p) {
+              if (row.groupBlock) {
+                p.groupBlock = row.groupBlock;
+              }
             }
-          }
-        });
+          });
+        }
 
         saveProjectsLocal();
         saveBlocksLocal();
@@ -599,6 +613,37 @@
           "<span style='color:var(--bad); font-weight:700;'>Error al conectar con Google Sheets</span><br>" +
           "<span style='font-size:12px; color:var(--muted);'>" + err.message + "</span><br><br>" +
           "<button onclick='bypassToLocal()' class='btn btn-light' style='background:var(--accent-dark);color:white;'>Continuar en modo local</button>";
+      }
+    }
+
+    async function pushLocalToSheets() {
+      if (!SCRIPT_URL_AGRUPADOR || SCRIPT_URL_AGRUPADOR.includes("TU_GOOGLE_APPS_SCRIPT")) {
+        alert("Primero debes configurar la URL de tu Google Apps Script en SCRIPT_URL_AGRUPADOR dentro de agrupador.html.");
+        return;
+      }
+
+      if (!confirm("¿Deseas subir todos tus bloques y tarjetas locales actuales al Google Sheet? Esto guardará tu estado actual en la hoja de cálculo.")) return;
+
+      setSyncState('syncing', 'Subiendo datos...');
+      const overlay = document.getElementById('loadingOverlay');
+      overlay.style.display = 'flex';
+      document.getElementById('loadingText').innerHTML = '<div class="spinner"></div><div style="margin-top:10px;">Subiendo tus datos locales a Google Sheets...</div>';
+
+      try {
+        await syncBlocks();
+        for (const p of projects) {
+          if (p.groupBlock) {
+            await syncProjectGroup(p);
+          }
+        }
+        overlay.style.display = 'none';
+        setSyncState('connected', 'Sincronizado');
+        showToast('✅ ¡Todos tus datos locales se han guardado en Google Sheets!');
+      } catch (err) {
+        console.error("Failed to push local to Sheets:", err);
+        overlay.style.display = 'none';
+        setSyncState('disconnected', 'Error al subir');
+        alert("Error al subir los datos: " + err.message);
       }
     }
 
