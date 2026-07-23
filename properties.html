@@ -61,6 +61,8 @@
       height: 220px;
       border-radius: 50%;
       background: radial-gradient(circle, rgba(73, 165, 230, 0.34), rgba(73, 165, 230, 0));
+      pointer-events: none;
+      z-index: 0;
     }
 
     h1, h2, h3 {
@@ -725,7 +727,7 @@
 <body>
   <div class="shell">
     <section class="hero">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px; position:relative; z-index:10;">
         <h1>Mapa Visual de Migracion de Java 8 a JDK 17</h1>
         <button onclick="window.history.length > 1 ? history.back() : location.href='index.html'" 
                 style="background: linear-gradient(135deg, #004481, #1464a5); color: white; border: none; padding: 10px 22px; border-radius: 999px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 68, 129, 0.25); font-size: 0.95rem; transition: transform 0.2s;"
