@@ -377,16 +377,112 @@
       animation: slideIn 300ms ease;
     }
 
-    @keyframes slideIn {
-      from {
-        transform: translateX(400px);
-        opacity: 0;
-      }
+    /* Modal styling */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 34, 39, 0.6);
+      backdrop-filter: blur(5px);
+      z-index: 10000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
 
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
+    .modal-content {
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      width: 100%;
+      max-width: 550px;
+      border-radius: var(--radius-bubble);
+      box-shadow: 0 20px 40px rgba(7, 34, 39, 0.25);
+      display: flex;
+      flex-direction: column;
+      max-height: 90vh;
+      animation: modalFade 0.2s ease;
+      border-top: 6px solid var(--accent);
+      overflow: hidden;
+    }
+
+    @keyframes modalFade {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-header {
+      padding: 20px 25px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .modal-close {
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--muted);
+      background: none;
+      border: none;
+      padding: 5px;
+    }
+
+    .modal-close:hover {
+      color: var(--ink);
+    }
+
+    .modal-body {
+      padding: 25px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      font-size: 0.9rem;
+    }
+
+    .modal-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .modal-meta-card {
+      background: rgba(0, 180, 216, 0.03);
+      border: 1.5px solid var(--line);
+      padding: 12px;
+      border-radius: var(--radius-card);
+    }
+
+    .modal-meta-card strong {
+      display: block;
+      font-size: 1.15rem;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+
+    .modal-meta-card span {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .modal-section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      font-weight: 750;
+      margin-bottom: 10px;
+      border-bottom: 1.5px solid var(--line);
+      padding-bottom: 4px;
     }
   </style>
 </head>
@@ -431,6 +527,53 @@
     </div>
 
     <div class="blocks-wrapper" id="blocksWrapper"></div>
+  </div>
+
+  <!-- Cards Details & Comment Modal -->
+  <div class="modal" id="projectModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: 1;">
+          <div class="modal-title" id="modalProjectName" style="margin: 0;">Nombre Proyecto</div>
+          <span class="jcard-meta" id="modalTagRisk" style="font-weight:800; padding:4px 10px; border-radius:99px; background:var(--accent-soft); color:var(--ink);">RIESGO</span>
+          <span style="display:flex; align-items:center; gap:6px; font-size:0.8rem; font-weight:700; color:var(--ink);">Bloque:
+            <select id="modalSelectBlock" onchange="changeProjectBlockModal()"
+              style="padding:4px 8px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); font-weight:700; outline:none; cursor:pointer; font-size:0.8rem;"></select></span>
+        </div>
+        <button class="modal-close" onclick="closeProjectModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Metadata grid -->
+        <div class="modal-meta-grid">
+          <div class="modal-meta-card">
+            <strong id="modalJavaFiles">0</strong>
+            <span>Archivos Java</span>
+          </div>
+          <div class="modal-meta-card">
+            <strong id="modalTestFiles">0</strong>
+            <span>Archivos de Test</span>
+          </div>
+          <div class="modal-meta-card">
+            <strong id="modalHasPom">No</strong>
+            <span>Proyecto Maven</span>
+          </div>
+          <div class="modal-meta-card">
+            <strong id="modalScore">0</strong>
+            <span>Complejidad Score</span>
+          </div>
+        </div>
+
+        <!-- Comments/Notes -->
+        <div style="margin-top: 5px;">
+          <div class="modal-section-title">Notas de Migración / Comentarios</div>
+          <textarea id="modalCommentInput" placeholder="Añadir observaciones o comentarios sobre este proyecto..."
+            style="width:100%; min-height:100px; padding:12px; border:1.5px solid var(--line); border-radius:12px; resize:vertical; outline:none; font-family:inherit; font-size:0.9rem; transition:border-color 0.2s; background:var(--panel); color:var(--ink);"
+            onchange="saveProjectComment()"></textarea>
+        </div>
+
+      </div>
+    </div>
   </div>
 
   <script>
@@ -697,7 +840,8 @@
       const updateUrl = SCRIPT_URL_AGRUPADOR +
         "?action=update" +
         "&projectId=" + encodeURIComponent(p.id) +
-        "&groupBlock=" + encodeURIComponent(p.groupBlock || '');
+        "&groupBlock=" + encodeURIComponent(p.groupBlock || '') +
+        "&comment=" + encodeURIComponent(p.comment || '');
 
       try {
         const response = await fetch(updateUrl, { method: 'GET', keepalive: true });
@@ -708,6 +852,77 @@
         setSyncState('disconnected', 'Error de conexión');
       }
     }
+
+    let activeProjectId = null;
+
+    function openProjectModal(id) {
+      const p = projects.find(proj => proj.id === id);
+      if (!p) return;
+
+      activeProjectId = id;
+      document.getElementById('modalProjectName').textContent = p.name;
+      document.getElementById('modalTagRisk').textContent = p.riskLabel || p.risk || 'Riesgo';
+      document.getElementById('modalJavaFiles').textContent = p.javaFiles || 0;
+      document.getElementById('modalTestFiles').textContent = p.testFiles || 0;
+      document.getElementById('modalHasPom').textContent = p.hasPom ? 'Sí' : 'No';
+      document.getElementById('modalScore').textContent = p.score ? p.score.toFixed(1) : '0';
+      document.getElementById('modalCommentInput').value = p.comment || '';
+
+      const select = document.getElementById('modalSelectBlock');
+      select.innerHTML = '';
+      blocks.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = b.name;
+        if (b.id === p.groupBlock) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      document.getElementById('projectModal').style.display = 'flex';
+    }
+
+    function closeProjectModal() {
+      document.getElementById('projectModal').style.display = 'none';
+      activeProjectId = null;
+    }
+
+    function saveProjectComment() {
+      if (!activeProjectId) return;
+      const p = projects.find(proj => proj.id === activeProjectId);
+      if (p) {
+        const val = document.getElementById('modalCommentInput').value;
+        p.comment = val;
+        saveProjectsLocal();
+        syncProjectGroup(p);
+        showToast('💬 Comentario guardado');
+      }
+    }
+
+    function changeProjectBlockModal() {
+      if (!activeProjectId) return;
+      const p = projects.find(proj => proj.id === activeProjectId);
+      if (p) {
+        const newBlockId = document.getElementById('modalSelectBlock').value;
+        p.groupBlock = newBlockId;
+        saveProjectsLocal();
+        syncProjectGroup(p);
+        renderAll();
+        showToast('🔀 Bloque actualizado');
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && activeProjectId) {
+        closeProjectModal();
+      }
+    });
+
+    window.addEventListener('click', (e) => {
+      const modal = document.getElementById('projectModal');
+      if (e.target === modal) {
+        closeProjectModal();
+      }
+    });
 
     async function syncBlocks() {
       saveBlocksLocal();
@@ -869,6 +1084,7 @@
             const card = document.createElement('div');
             card.className = 'jcard risk-' + p.risk;
             card.draggable = true;
+            card.onclick = () => openProjectModal(p.id);
             card.ondragstart = (e) => drag(e, p.id);
             card.ondragend = dragEnd;
 
