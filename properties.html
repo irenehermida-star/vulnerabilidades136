@@ -725,7 +725,15 @@
 <body>
   <div class="shell">
     <section class="hero">
-      <h1>Mapa Visual de Migracion de Java 8 a JDK 17</h1>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px;">
+        <h1>Mapa Visual de Migracion de Java 8 a JDK 17</h1>
+        <button onclick="window.history.length > 1 ? history.back() : location.href='index.html'" 
+                style="background: linear-gradient(135deg, #004481, #1464a5); color: white; border: none; padding: 10px 22px; border-radius: 999px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 68, 129, 0.25); font-size: 0.95rem; transition: transform 0.2s;"
+                onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'"
+                title="Volver a la página anterior">
+          ⬅ Volver al Tablero
+        </button>
+      </div>
       <p class="subtitle">
         Vista ejecutiva y tecnica de los proyectos Java en esta carpeta. El foco no es solo compatibilidad de lenguaje: el principal coste esta en build reproducible, APIs retiradas del JDK y stacks legacy de Spring, Hibernate, Oracle y JMS.
       </p>
@@ -738,6 +746,7 @@
         <span class="pill">11 con tests detectados</span>
       </div>
       <div class="tabs">
+        <button class="tab-button" type="button" onclick="window.history.length > 1 ? history.back() : location.href='index.html'" style="background: #004481; color: white; font-weight: bold;">⬅ Volver</button>
         <button class="tab-button active" type="button" data-tab="overview">Dashboard</button>
         <button class="tab-button" type="button" data-tab="plan">Plan Por Bloques</button>
         <button class="tab-button" type="button" data-tab="properties">Properties</button>

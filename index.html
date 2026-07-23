@@ -1006,6 +1006,90 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Celebration overlay */
+    .celebration-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10, 25, 30, 0.95);
+      z-index: 10000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 20px;
+      animation: fadeInCelebration 0.5s ease;
+      padding: 20px;
+    }
+    .celebration-overlay.active {
+      display: flex;
+    }
+    @keyframes fadeInCelebration {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .celebration-title {
+      font-size: 2.8rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #00b4d8, #06d6a0, #ffd166, #ef476f);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientShift 4s ease infinite;
+      text-align: center;
+      text-shadow: 0 0 30px rgba(6, 214, 160, 0.3);
+      letter-spacing: 1px;
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .celebration-video {
+      max-width: 680px;
+      width: 100%;
+      aspect-ratio: 16/9;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 180, 216, 0.5);
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      background: #000;
+    }
+    .celebration-close {
+      padding: 14px 36px;
+      background: linear-gradient(135deg, #00b4d8, #0077b6);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .celebration-close:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 20px rgba(0, 180, 216, 0.5);
+    }
+
+    /* Confetti animation */
+    .confetti-container {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 10001;
+      overflow: hidden;
+    }
+    .confetti-piece {
+      position: absolute;
+      top: -20px;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      animation: confettiFall linear forwards;
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+    }
   </style>
 </head>
 
@@ -1035,6 +1119,8 @@
         <button class="btn btn-refresh" style="background:#7b2cbf; color:white;" onclick="location.href='agrupador.html'"
           title="Ir a la página de agrupación libre de Javas" aria-label="Ir al agrupador de Javas">🧩 Agrupador
           Javas</button>
+        <button class="btn btn-refresh" style="background:#2a9d8f; color:white;" onclick="location.href='properties.html'"
+          title="Ir a la página de propiedades" aria-label="Ir a Properties">⚙️ Properties</button>
         <button class="btn btn-export" onclick="exportState()" title="Exportar estado del tablero"
           aria-label="Exportar estado">📤 Exportar</button>
         <button class="btn btn-export" onclick="document.getElementById('importFileInput').click()"
@@ -1178,8 +1264,15 @@
     </div>
   </div>
 
-
-
+  <!-- Celebration Overlay -->
+  <div class="celebration-overlay" id="celebrationOverlay">
+    <div class="celebration-title">🎉 ¡MIGRACIÓN COMPLETADA! 🎉</div>
+    <p style="color: rgba(255,255,255,0.8); font-size: 1.1rem; text-align: center; max-width: 500px; margin: 0 0 10px 0;">
+      Todos los proyectos se han migrado exitosamente a JDK 17. ¡Enhorabuena!
+    </p>
+    <video class="celebration-video" id="celebrationVideo" src="resources/si.mp4" controls playsinline></video>
+    <button class="celebration-close" onclick="closeCelebration()">Cerrar Celebración</button>
+  </div>
 
   <script>
     // Configuration - Paste your deployed Google Apps Script Web App URL here
@@ -4501,7 +4594,74 @@
       document.getElementById('statGlobalPercent').textContent = globalPercent + '%';
       document.getElementById('statProgressBar').style.width = globalPercent + '%';
 
+      // Check celebration condition
+      checkAllCompleted();
+    }
 
+    // Celebration: Check if all projects are completed
+    function checkAllCompleted() {
+      if (projects.length === 0) return;
+      const completedListId = COLUMNS[COLUMNS.length - 1].id;
+      const allCompleted = projects.every(p => p.currentList === completedListId);
+      
+      if (allCompleted) {
+        const overlay = document.getElementById('celebrationOverlay');
+        if (overlay && !overlay.classList.contains('active')) {
+          overlay.classList.add('active');
+          
+          // Play video
+          const video = document.getElementById('celebrationVideo');
+          if (video) {
+            video.currentTime = 0;
+            video.play().catch(e => console.log("Auto-play blocked or video load issue:", e));
+          }
+          
+          // Launch CSS Confetti
+          launchConfetti();
+        }
+      }
+    }
+
+    function closeCelebration() {
+      const overlay = document.getElementById('celebrationOverlay');
+      if (overlay) {
+        overlay.classList.remove('active');
+      }
+      
+      const video = document.getElementById('celebrationVideo');
+      if (video) {
+        video.pause();
+      }
+      
+      const confetti = document.getElementById('confettiContainer');
+      if (confetti) {
+        confetti.remove();
+      }
+    }
+
+    function launchConfetti() {
+      const existing = document.getElementById('confettiContainer');
+      if (existing) existing.remove();
+      
+      const container = document.createElement('div');
+      container.className = 'confetti-container';
+      container.id = 'confettiContainer';
+      
+      const colors = ['#00b4d8', '#06d6a0', '#ffd166', '#ef476f', '#118ab2', '#7209b7', '#ffb703', '#fb8500'];
+      
+      for (let i = 0; i < 100; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + '%';
+        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDuration = (1.5 + Math.random() * 2.5) + 's';
+        piece.style.animationDelay = Math.random() * 2 + 's';
+        piece.style.width = (5 + Math.random() * 8) + 'px';
+        piece.style.height = (5 + Math.random() * 8) + 'px';
+        container.appendChild(piece);
+      }
+      
+      document.body.appendChild(container);
     }
 
     // Toggle swimlane collapse
