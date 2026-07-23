@@ -6,7 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RDR - Agrupador de Javas</title>
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     :root {
       --accent: #00b4d8;
@@ -70,6 +72,81 @@
       flex-wrap: wrap;
     }
 
+    /* Status indicator & Spinner */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ffd166;
+    }
+
+    .status-dot.connected {
+      background: #06d6a0;
+    }
+
+    .status-dot.syncing {
+      background: #ffd166;
+      animation: pulse 1s infinite alternate;
+    }
+
+    .status-dot.disconnected {
+      background: #ef476f;
+    }
+
+    @keyframes pulse {
+      from {
+        opacity: 0.4;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(4px);
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: inherit;
+    }
+
+    [data-theme="dark"] .loading-overlay {
+      background: rgba(13, 27, 42, 0.92);
+      color: white;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(0, 180, 216, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .btn {
       padding: 10px 20px;
       border: none;
@@ -124,17 +201,6 @@
       align-items: center;
       flex-wrap: wrap;
       margin-bottom: 20px;
-    }
-
-    .toolbar input {
-      padding: 12px 18px;
-      border: 1.5px solid var(--line);
-      border-radius: var(--radius-pill);
-      background: var(--panel);
-      color: var(--ink);
-      font-size: 0.9rem;
-      outline: none;
-      min-width: 240px;
     }
 
     .blocks-wrapper {
@@ -254,9 +320,17 @@
       transform: scale(0.96);
     }
 
-    .jcard.risk-high { border-left: 5px solid var(--bad); }
-    .jcard.risk-medium { border-left: 5px solid var(--warn); }
-    .jcard.risk-low { border-left: 5px solid var(--good); }
+    .jcard.risk-high {
+      border-left: 5px solid var(--bad);
+    }
+
+    .jcard.risk-medium {
+      border-left: 5px solid var(--warn);
+    }
+
+    .jcard.risk-low {
+      border-left: 5px solid var(--good);
+    }
 
     .jcard-name {
       font-weight: 800;
@@ -304,21 +378,41 @@
     }
 
     @keyframes slideIn {
-      from { transform: translateX(400px); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
     }
   </style>
 </head>
 
 <body>
 
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div style="font-size:16px; font-weight:700; color:var(--ink); margin-top:15px;" id="loadingText">Conectando con
+      Google Sheets...</div>
+  </div>
+
   <div class="header">
     <h1>🧩 Agrupador Libre de Javas</h1>
     <div class="header-actions">
+      <div class="status-indicator" aria-live="polite">
+        <div class="status-dot" id="syncDot" aria-hidden="true"></div>
+        <span id="syncText">Cargando...</span>
+      </div>
+      <button id="btnRefresh" class="btn btn-light" onclick="loadData()" title="Sincronizar ahora con Google Sheets">🔄
+        Sincronizar</button>
       <input type="text" id="searchInput" placeholder="Buscar proyecto..." onkeyup="renderAll()"
         style="padding:10px 16px; border-radius:99px; border:none; min-width:220px;">
-      <button class="btn btn-light" onclick="location.href='index.html'" title="Volver al tablero principal">⬅
-        Volver al Tablero</button>
+      <button class="btn btn-light" onclick="location.href='index.html'" title="Volver al tablero principal">⬅ Volver al
+        Tablero</button>
       <button class="btn btn-outline" onclick="resetGrouping()" title="Poner todos los proyectos en un solo bloque">♻️
         Reiniciar Agrupación</button>
       <button class="theme-toggle" onclick="toggleTheme()" title="Cambiar modo claro/oscuro"
@@ -330,7 +424,7 @@
     <div class="toolbar">
       <span style="color:var(--muted); font-size:0.85rem;">
         Arrastra las tarjetas entre bloques. Usa "➕ Nuevo Bloque" para crear cuantos necesites. Los cambios se
-        guardan automáticamente y se reflejan también en el tablero principal.
+        guardan automáticamente en tu Google Sheet y localmente.
       </span>
     </div>
 
@@ -338,14 +432,39 @@
   </div>
 
   <script>
-    // Shared localStorage keys with index.html so grouping reflects on the main board too
+    // Configuration - Paste your deployed Google Apps Script Web App URL for Agrupador here
+    const SCRIPT_URL_AGRUPADOR = "https://script.google.com/macros/s/AKfycbw3gs7YXwEodm3k0MHXL_flOCvhusZ4k5h7E_uAtzhD87sYbDAApICzbSny9LfHdeyX/exec";
+
+    // Shared localStorage keys
     const STORAGE_PROJECTS = 'exact_board_local_fallback';
-    const STORAGE_PROCESSES = 'exact_board_processes';
+    const STORAGE_BLOCKS = 'agrupador_blocks';
     const STORAGE_GROUPING_INIT = 'agrupador_initialized';
+
+    // Initial Java projects definition (Fallback if local & remote are empty)
+    const initialProjects = [
+      { id: "DeltaSSIs", name: "DeltaSSIs", javaFiles: 11, testFiles: 0, hasPom: false, score: 334.6, process: "Bloque 1", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "DeltaSSIsFX", name: "DeltaSSIsFX", javaFiles: 11, testFiles: 0, hasPom: false, score: 334.6, process: "Bloque 2", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "DeltaSSIProject", name: "DeltaSSIProject", javaFiles: 11, testFiles: 0, hasPom: false, score: 334.6, process: "Bloque 3", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "refinitivderivativesloader", name: "refinitivderivativesloader", javaFiles: 49, testFiles: 0, hasPom: true, score: 306.2, process: "Bloque 4", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "servicesRDR", name: "servicesRDR", javaFiles: 36, testFiles: 0, hasPom: false, score: 221, process: "Bloque 4", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "RDR_SectorizacionEmisores", name: "RDR_SectorizacionEmisores", javaFiles: 28, testFiles: 17, hasPom: true, score: 137.2, process: "Bloque 3", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "sectorclassificationloader", name: "sectorclassificationloader", javaFiles: 24, testFiles: 0, hasPom: true, score: 134.2, process: "Bloque 2", risk: "high", riskLabel: "Riesgo Alto" },
+      { id: "rdrRules", name: "rdrRules", javaFiles: 74, testFiles: 5, hasPom: true, score: 93.2, process: "Bloque 1", risk: "medium", riskLabel: "Riesgo Medio" },
+      { id: "RDR_Extraction_CPARTYS", name: "RDR_Extraction_CPARTYS", javaFiles: 18, testFiles: 0, hasPom: false, score: 86.4, process: "Bloque 1", risk: "medium", riskLabel: "Riesgo Medio" },
+      { id: "refinitivFilter", name: "refinitivFilter", javaFiles: 21, testFiles: 0, hasPom: true, score: 84.7, process: "Bloque 2", risk: "medium", riskLabel: "Riesgo Medio" },
+      { id: "concurrenteRDR", name: "concurrenteRDR", javaFiles: 14, testFiles: 0, hasPom: false, score: 77.2, process: "Bloque 3", risk: "medium", riskLabel: "Riesgo Medio" }
+    ];
 
     let projects = [];
     let blocks = []; // { id, name }
     let draggedId = null;
+
+    function setSyncState(state, text) {
+      const dot = document.getElementById('syncDot');
+      const txt = document.getElementById('syncText');
+      if (dot) dot.className = 'status-dot ' + state;
+      if (txt) txt.textContent = text;
+    }
 
     function toggleTheme() {
       const html = document.documentElement;
@@ -372,23 +491,25 @@
       setTimeout(() => toast.remove(), 3000);
     }
 
-    function loadProjects() {
+    function loadProjectsLocal() {
       const saved = localStorage.getItem(STORAGE_PROJECTS);
       if (saved) {
         try {
           projects = JSON.parse(saved);
         } catch (e) {
-          projects = [];
+          projects = JSON.parse(JSON.stringify(initialProjects));
         }
+      } else {
+        projects = JSON.parse(JSON.stringify(initialProjects));
       }
     }
 
-    function saveProjects() {
+    function saveProjectsLocal() {
       localStorage.setItem(STORAGE_PROJECTS, JSON.stringify(projects));
     }
 
-    function loadBlocks() {
-      const saved = localStorage.getItem('agrupador_blocks');
+    function loadBlocksLocal() {
+      const saved = localStorage.getItem(STORAGE_BLOCKS);
       if (saved) {
         try {
           blocks = JSON.parse(saved);
@@ -401,30 +522,130 @@
       }
     }
 
-    function saveBlocks() {
-      localStorage.setItem('agrupador_blocks', JSON.stringify(blocks));
+    function saveBlocksLocal() {
+      localStorage.setItem(STORAGE_BLOCKS, JSON.stringify(blocks));
     }
 
     function initGrouping() {
-      // First time visiting: put every project into the single starting block
-      const already = localStorage.getItem(STORAGE_GROUPING_INIT);
-      if (!already) {
-        projects.forEach(p => {
-          p.groupBlock = 'bloque_unico';
-        });
-        localStorage.setItem(STORAGE_GROUPING_INIT, '1');
-        saveProjects();
-      } else {
-        // Ensure every project has a groupBlock, default to first block
-        const defaultBlockId = blocks[0] ? blocks[0].id : 'bloque_unico';
-        let changed = false;
-        projects.forEach(p => {
-          if (!p.groupBlock || !blocks.some(b => b.id === p.groupBlock)) {
-            p.groupBlock = defaultBlockId;
-            changed = true;
+      const defaultBlockId = blocks[0] ? blocks[0].id : 'bloque_unico';
+      let changed = false;
+      projects.forEach(p => {
+        if (!p.groupBlock || !blocks.some(b => b.id === p.groupBlock)) {
+          p.groupBlock = defaultBlockId;
+          changed = true;
+        }
+      });
+      if (changed) saveProjectsLocal();
+    }
+
+    // Google Sheets Sync Functions
+    async function loadData() {
+      loadProjectsLocal();
+      loadBlocksLocal();
+
+      if (!SCRIPT_URL_AGRUPADOR || SCRIPT_URL_AGRUPADOR.includes("TU_GOOGLE_APPS_SCRIPT")) {
+        document.getElementById('loadingOverlay').style.display = 'none';
+        setSyncState('disconnected', 'Modo Local');
+        initGrouping();
+        renderAll();
+        return;
+      }
+
+      setSyncState('syncing', 'Sincronizando...');
+      const overlay = document.getElementById('loadingOverlay');
+      overlay.style.display = 'flex';
+      document.getElementById('loadingText').innerHTML = '<div class="spinner"></div><div style="margin-top:10px;">Descargando datos desde Google Sheets...</div>';
+
+      try {
+        const response = await fetch(SCRIPT_URL_AGRUPADOR + "?action=read");
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+
+        const sheetData = await response.json();
+
+        sheetData.forEach(row => {
+          if (row.projectId === '__CONFIG__GROUP_BLOCKS__') {
+            if (row.checklist && row.checklist.trim().startsWith('[')) {
+              try {
+                const parsedBlocks = JSON.parse(row.checklist);
+                if (Array.isArray(parsedBlocks) && parsedBlocks.length > 0) {
+                  blocks = parsedBlocks;
+                }
+              } catch (e) { }
+            }
+            return;
+          }
+
+          let p = projects.find(proj => proj.id === row.projectId);
+          if (p) {
+            if (row.groupBlock) {
+              p.groupBlock = row.groupBlock;
+            }
           }
         });
-        if (changed) saveProjects();
+
+        saveProjectsLocal();
+        saveBlocksLocal();
+        initGrouping();
+
+        setSyncState('connected', 'Sincronizado');
+        overlay.style.display = 'none';
+        showToast('🔄 Agrupación sincronizada con Google Sheets');
+        renderAll();
+
+      } catch (err) {
+        console.error("Failed to fetch from Google Sheets:", err);
+        setSyncState('disconnected', 'Modo Local (Sin Conexión)');
+        document.getElementById('loadingText').innerHTML =
+          "<span style='color:var(--bad); font-weight:700;'>Error al conectar con Google Sheets</span><br>" +
+          "<span style='font-size:12px; color:var(--muted);'>" + err.message + "</span><br><br>" +
+          "<button onclick='bypassToLocal()' class='btn btn-light' style='background:var(--accent-dark);color:white;'>Continuar en modo local</button>";
+      }
+    }
+
+    function bypassToLocal() {
+      document.getElementById('loadingOverlay').style.display = 'none';
+      initGrouping();
+      renderAll();
+    }
+
+    async function syncProjectGroup(p) {
+      saveProjectsLocal();
+      if (!SCRIPT_URL_AGRUPADOR || SCRIPT_URL_AGRUPADOR.includes("TU_GOOGLE_APPS_SCRIPT")) return;
+
+      setSyncState('syncing', 'Guardando...');
+      const updateUrl = SCRIPT_URL_AGRUPADOR +
+        "?action=update" +
+        "&projectId=" + encodeURIComponent(p.id) +
+        "&groupBlock=" + encodeURIComponent(p.groupBlock || '');
+
+      try {
+        const response = await fetch(updateUrl, { method: 'GET', keepalive: true });
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+        setSyncState('connected', 'Sincronizado');
+      } catch (err) {
+        console.error("Failed to sync project group:", err);
+        setSyncState('disconnected', 'Error de conexión');
+      }
+    }
+
+    async function syncBlocks() {
+      saveBlocksLocal();
+      if (!SCRIPT_URL_AGRUPADOR || SCRIPT_URL_AGRUPADOR.includes("TU_GOOGLE_APPS_SCRIPT")) return;
+
+      setSyncState('syncing', 'Guardando bloques...');
+      const blocksStr = JSON.stringify(blocks);
+      const updateUrl = SCRIPT_URL_AGRUPADOR +
+        "?action=update" +
+        "&projectId=__CONFIG__GROUP_BLOCKS__" +
+        "&checklist=" + encodeURIComponent(blocksStr);
+
+      try {
+        const response = await fetch(updateUrl, { method: 'GET', keepalive: true });
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+        setSyncState('connected', 'Sincronizado');
+      } catch (err) {
+        console.error("Failed to sync blocks:", err);
+        setSyncState('disconnected', 'Error de conexión');
       }
     }
 
@@ -432,8 +653,9 @@
       if (!confirm('¿Seguro que quieres poner todos los proyectos de nuevo en un único bloque?')) return;
       blocks = [{ id: 'bloque_unico', name: 'Todos los Javas' }];
       projects.forEach(p => { p.groupBlock = 'bloque_unico'; });
-      saveBlocks();
-      saveProjects();
+      syncBlocks();
+      saveProjectsLocal();
+      projects.forEach(p => syncProjectGroup(p));
       renderAll();
       showToast('♻️ Agrupación reiniciada');
     }
@@ -445,7 +667,7 @@
       if (!cleanName) return;
       const id = 'bloque_' + Date.now();
       blocks.push({ id, name: cleanName });
-      saveBlocks();
+      syncBlocks();
       renderAll();
       showToast('➕ Bloque "' + cleanName + '" creado');
     }
@@ -454,7 +676,7 @@
       const b = blocks.find(bl => bl.id === blockId);
       if (b && newName.trim()) {
         b.name = newName.trim();
-        saveBlocks();
+        syncBlocks();
       }
     }
 
@@ -470,7 +692,7 @@
       }
       if (confirm('¿Eliminar este bloque vacío?')) {
         blocks = blocks.filter(b => b.id !== blockId);
-        saveBlocks();
+        syncBlocks();
         renderAll();
         showToast('🗑️ Bloque eliminado');
       }
@@ -498,7 +720,7 @@
       const project = projects.find(p => p.id === draggedId);
       if (project && project.groupBlock !== blockId) {
         project.groupBlock = blockId;
-        saveProjects();
+        syncProjectGroup(project);
         renderAll();
         showToast('🔀 Proyecto movido de bloque');
       }
@@ -576,7 +798,7 @@
 
             const meta = document.createElement('div');
             meta.className = 'jcard-meta';
-            meta.textContent = 'Java: ' + p.javaFiles + ' · Score: ' + p.score.toFixed(1) + ' · ' + (p.riskLabel || '');
+            meta.textContent = 'Java: ' + p.javaFiles + ' · Score: ' + (p.score ? p.score.toFixed(1) : '0') + ' · ' + (p.riskLabel || '');
             card.appendChild(meta);
 
             body.appendChild(card);
@@ -597,10 +819,7 @@
 
     // Init
     initTheme();
-    loadProjects();
-    loadBlocks();
-    initGrouping();
-    renderAll();
+    loadData();
   </script>
 </body>
 
